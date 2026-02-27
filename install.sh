@@ -122,13 +122,14 @@ DETECTED_SHELL="$(basename "${SHELL:-bash}")"
 
 if [[ "$DETECTED_SHELL" == "zsh" ]] || [[ -n "${ZSH_VERSION:-}" ]]; then
   add_completion "${HOME}/.zshrc" "source \"${INSTALL_DIR}/completions/yourclaude.zsh\""
-  # Source for the current session
-  # shellcheck disable=SC1090
-  source "${INSTALL_DIR}/completions/yourclaude.zsh" 2>/dev/null || true
+  # Only source zsh completion if actually running inside zsh
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    # shellcheck disable=SC1090
+    source "${INSTALL_DIR}/completions/yourclaude.zsh" 2>/dev/null || true
+  fi
 else
   add_completion "${HOME}/.bashrc" "source \"${INSTALL_DIR}/completions/yourclaude.bash\""
   add_completion "${HOME}/.bash_profile" "source \"${INSTALL_DIR}/completions/yourclaude.bash\""
-  # Source for the current session
   # shellcheck disable=SC1090
   source "${INSTALL_DIR}/completions/yourclaude.bash" 2>/dev/null || true
 fi
