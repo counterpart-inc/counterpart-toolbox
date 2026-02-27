@@ -265,6 +265,11 @@ run_uninstall() {
   rm -rf "$GLOBAL_CONFIG_DIR"
   echo "  [✓] Removed ${GLOBAL_CONFIG_DIR}/"
 
+  if [[ -d "${HOME}/.claude/plugins/cache" ]]; then
+    rm -rf "${HOME}/.claude/plugins/cache"
+    echo "  [✓] Cleared Claude plugin cache."
+  fi
+
   if [[ "${remove_workspace:-N}" =~ ^[Yy]$ && -n "${COUNTERPART_WORKSPACE:-}" ]]; then
     rm -rf "${COUNTERPART_WORKSPACE}/.counterpart"
     echo "  [✓] Removed ${COUNTERPART_WORKSPACE}/.counterpart/"
