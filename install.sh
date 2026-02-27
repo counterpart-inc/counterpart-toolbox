@@ -186,9 +186,21 @@ else
 fi
 
 echo ""
+echo -e "${BOLD}Next steps:${RESET}"
+echo ""
+echo -e "  1. Reload your shell to activate tab completions:"
 if [[ "$DETECTED_SHELL" == "zsh" ]] || [[ -n "${ZSH_VERSION:-}" ]]; then
-  echo -e "  Reload your shell to activate completions: ${BOLD}source ~/.zshrc${RESET}"
+  echo -e "     ${BOLD}source ~/.zshrc${RESET}"
 else
-  echo -e "  Reload your shell to activate completions: ${BOLD}source ~/.bashrc${RESET}"
+  echo -e "     ${BOLD}source ~/.bashrc${RESET}"
 fi
+echo ""
+echo -e "  2. Run Claude from your Counterpart workspace:"
+echo -e "     ${BOLD}cd ~/projects/work/counterpart && yourclaude${RESET}"
+echo ""
+echo -e "  3. Inside Claude, authenticate your MCP servers:"
+echo -e "     ${BOLD}/mcp${RESET}"
+echo ""
+echo -e "  4. Check your environment at any time:"
+echo -e "     ${BOLD}yourclaude status${RESET}"
 echo ""
