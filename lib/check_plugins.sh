@@ -57,7 +57,9 @@ check_plugins() {
 
   for plugin in "${required_plugins[@]}"; do
     if echo "$installed_output" | grep -qF "$plugin"; then
-      echo "  [✓] Plugin '$plugin' installed."
+      local version
+      version=$(echo "$installed_output" | grep -A2 "$plugin" | grep -o 'Version: [0-9.]*' | cut -d' ' -f2)
+      echo "  [✓] Plugin '$plugin' installed${version:+ (v${version})}."
     else
       echo "  [!] Plugin '$plugin' is not installed."
       printf "      Install '$plugin' now? [Y/n] "
