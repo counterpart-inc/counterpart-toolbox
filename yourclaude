@@ -105,9 +105,9 @@ run_setup() {
   "version": "1.0.0",
   "marketplaces": [
     "git@github.com:counterpart-inc/counterpart-plugins.git",
-    "github:anthropics/claude-plugins-official"
+    "anthropics/claude-plugins-official"
   ],
-  "required_plugins": ["compound-engineering", "hire", "plugin-dev", "pyright-lsp"],
+  "required_plugins": ["cmpd", "hire", "plugin-dev", "pyright-lsp"],
   "mcp_servers": {
     "linear": "https://mcp.linear.app/sse",
     "sentry": "https://mcp.sentry.dev/mcp",
