@@ -24,20 +24,18 @@ If everything is green, it hands off to `claude` transparently.
 
 ## Installation
 
-A shared read-only GitHub PAT (stored in Notion under **Engineering Onboarding**) is embedded in the install command:
-
 ```bash
-curl -fsSL https://<SHARED_READONLY_PAT>@raw.githubusercontent.com/counterpart-inc/counterpart-toolbox/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/counterpart-inc/counterpart-toolbox/main/install.sh | bash
 ```
 
+> **Prerequisite:** your SSH key must be added to GitHub before running — the installer clones via SSH.
+
 This single command:
-1. Clones the repo to `~/.local/share/counterpart-toolbox/`
+1. Clones the repo to `~/.local/share/counterpart-toolbox/` via SSH
 2. Initializes the `plugins/` submodule (`counterpart-plugins`)
 3. Symlinks `yourclaude` → `~/.local/bin/yourclaude`
 4. Adds `~/.local/bin` to `PATH` in your shell rc file
 5. Runs `yourclaude setup` (first-time wizard)
-
-> **Token hygiene:** The PAT has `Contents: Read-only` scope on this repo only. Rotate it if it leaks.
 
 ### Prerequisites
 

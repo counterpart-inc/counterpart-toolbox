@@ -2,7 +2,9 @@
 # install.sh — bootstrap installer for counterpart-toolbox
 #
 # Usage (from onboarding docs):
-#   curl -fsSL https://<SHARED_READONLY_PAT>@raw.githubusercontent.com/counterpart-inc/counterpart-toolbox/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/counterpart-inc/counterpart-toolbox/main/install.sh | bash
+#
+# Note: cloning uses SSH (git@github.com) — ensure your SSH key is added to GitHub before running.
 #
 # What this script does:
 #   1. Clones counterpart-toolbox to ~/.local/share/counterpart-toolbox/
@@ -13,7 +15,7 @@
 
 set -euo pipefail
 
-REPO_URL="${REPO_URL:-https://github.com/counterpart-inc/counterpart-toolbox.git}"
+REPO_URL="${REPO_URL:-git@github.com:counterpart-inc/counterpart-toolbox.git}"
 INSTALL_DIR="${HOME}/.local/share/counterpart-toolbox"
 BIN_DIR="${HOME}/.local/bin"
 SYMLINK="${BIN_DIR}/yourclaude"
