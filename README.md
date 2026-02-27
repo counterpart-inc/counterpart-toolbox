@@ -24,18 +24,29 @@ If everything is green, it hands off to `claude` transparently.
 
 ## Installation
 
+### 1. Get the install token
+
+This repo is private. A shared read-only GitHub PAT is stored in Notion under **Engineering Onboarding → counterpart-toolbox install token**.
+
+The token has `Contents: Read-only` scope on this repo only. If it ever leaks, rotate it in GitHub → Settings → Developer settings → Fine-grained tokens and update the Notion page.
+
+### 2. Run the installer
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/counterpart-inc/counterpart-toolbox/main/install.sh | bash
+curl -fsSL https://<TOKEN>@raw.githubusercontent.com/counterpart-inc/counterpart-toolbox/main/install.sh | bash
 ```
 
-> **Prerequisite:** your SSH key must be added to GitHub before running — the installer clones via SSH.
+Replace `<TOKEN>` with the value from Notion. The token is only used to fetch `install.sh` — cloning the repo itself uses your SSH key.
+
+> **Prerequisite:** your SSH key must be added to GitHub before running.
 
 This single command:
 1. Clones the repo to `~/.local/share/counterpart-toolbox/` via SSH
 2. Initializes the `plugins/` submodule (`counterpart-plugins`)
 3. Symlinks `yourclaude` → `~/.local/bin/yourclaude`
 4. Adds `~/.local/bin` to `PATH` in your shell rc file
-5. Runs `yourclaude setup` (first-time wizard)
+5. Registers tab completions for bash/zsh
+6. Runs `yourclaude setup` (first-time wizard)
 
 ### Prerequisites
 
@@ -43,6 +54,7 @@ This single command:
 - `curl`
 - `jq` (`brew install jq` / `sudo apt install jq`)
 - [`claude` CLI](https://claude.ai/code)
+- SSH key added to your GitHub account
 
 ---
 
@@ -103,7 +115,7 @@ counterpart-toolbox/
 {
   "version": "1.0.0",
   "marketplace": "git@github.com:counterpart-inc/counterpart-plugins.git",
-  "required_plugins": ["cmpd"],
+  "required_plugins": ["compound-engineering"],
   "mcp_servers": {
     "linear": "https://mcp.linear.app/sse",
     "sentry": "https://mcp.sentry.dev/mcp",
@@ -147,6 +159,9 @@ The `plugins/` directory is a submodule pointing to `counterpart-plugins`. Chang
 ---
 
 ## Troubleshooting
+
+**`curl: (56) The requested URL returned error: 404`**
+The install token is missing, wrong, or expired. Grab the current token from Notion under **Engineering Onboarding → counterpart-toolbox install token**.
 
 **`yourclaude: command not found`**
 Reload your shell: `source ~/.zshrc` (or `~/.bashrc`), then try again.
