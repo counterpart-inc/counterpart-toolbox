@@ -1,0 +1,19 @@
+{
+  "version": "1.0.0",
+  "marketplaces": [
+    "git@github.com:counterpart-inc/counterpart-plugins.git",
+    "anthropics/claude-plugins-official"
+  ],
+  "required_plugins": ["cmpd", "hire", "plugin-dev", "pyright-lsp"],
+  "required_tools": [
+    {"cmd": "jq",       "brew": "jq"},
+    {"cmd": "rg",       "brew": "ripgrep"},
+    {"cmd": "ast-grep", "brew": "ast-grep"}
+  ],
+  "mcp_servers": {
+    "linear":   "https://mcp.linear.app/sse",
+    "sentry":   "https://mcp.sentry.dev/mcp",
+    "context7": "https://mcp.context7.com/mcp"
+  },
+  "guidelines_header": "# Counterpart Guidelines"
+}

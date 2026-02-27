@@ -136,42 +136,11 @@ fi
 success "Shell completions active."
 
 # ── 6. Check required CLI tools ─────────────────────────────────────────────────
-BREW_MISSING=()
-APT_MISSING=()
+# shellcheck source=lib/check_tools.sh
+source "${INSTALL_DIR}/lib/check_tools.sh"
+check_tools "${INSTALL_DIR}/templates/config.json"
 
-check_tool() {
-  local cmd="$1" brew_pkg="$2" apt_pkg="$3"
-  if ! command -v "$cmd" &>/dev/null; then
-    warn "'$cmd' is not installed."
-    BREW_MISSING+=("$brew_pkg")
-    APT_MISSING+=("$apt_pkg")
-  fi
-}
-
-check_tool jq        jq        jq
-check_tool rg        ripgrep   ripgrep
-check_tool ast-grep  ast-grep  ast-grep
-
-if [[ ${#BREW_MISSING[@]} -gt 0 ]]; then
-  echo ""
-  echo "  Install missing tools:"
-  if command -v brew &>/dev/null; then
-    echo "    brew install ${BREW_MISSING[*]}"
-    printf "  Install now with brew? [Y/n] "
-    read -r answer </dev/tty
-    answer="${answer:-Y}"
-    if [[ "$answer" =~ ^[Yy]$ ]]; then
-      brew install "${BREW_MISSING[@]}" 2>&1 | sed 's/^/    /'
-      success "Tools installed."
-    fi
-  else
-    echo "    macOS:  brew install ${BREW_MISSING[*]}"
-    echo "    Ubuntu: sudo apt install ${APT_MISSING[*]}"
-  fi
-  echo ""
-fi
-
-# ── 6. Run first-time setup ─────────────────────────────────────────────────────
+# ── 7. Run first-time setup ─────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}Installation complete.${RESET}"
 echo ""
