@@ -106,7 +106,7 @@ run_setup() {
 {
   "version": "1.0.0",
   "marketplace": "git@github.com:counterpart-inc/counterpart-plugins.git",
-  "required_plugins": [],
+  "required_plugins": ["compound-engineering"],
   "mcp_servers": {
     "linear": "https://mcp.linear.app/sse",
     "sentry": "https://mcp.sentry.dev/mcp",
