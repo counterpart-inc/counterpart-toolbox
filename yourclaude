@@ -175,8 +175,10 @@ run_update() {
 
   # Re-install/upgrade required plugins
   if load_workspace && [[ -f "$COUNTERPART_CONFIG" ]]; then
-    local required_plugins
-    mapfile -t required_plugins < <(jq -r '.required_plugins[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
+    local required_plugins=()
+    while IFS= read -r plugin; do
+      [[ -n "$plugin" ]] && required_plugins+=("$plugin")
+    done < <(jq -r '.required_plugins[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
     if [[ ${#required_plugins[@]} -gt 0 ]]; then
       echo "  Re-installing plugins..."
       for plugin in "${required_plugins[@]}"; do

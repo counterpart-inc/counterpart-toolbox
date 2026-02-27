@@ -37,8 +37,10 @@ check_marketplace() {
 }
 
 check_plugins() {
-  local required_plugins
-  mapfile -t required_plugins < <(jq -r '.required_plugins[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
+  local required_plugins=()
+  while IFS= read -r plugin; do
+    [[ -n "$plugin" ]] && required_plugins+=("$plugin")
+  done < <(jq -r '.required_plugins[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
 
   if [[ ${#required_plugins[@]} -eq 0 ]]; then
     echo "  [✓] No required plugins configured."
