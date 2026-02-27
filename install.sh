@@ -118,12 +118,21 @@ add_completion() {
   fi
 }
 
-if [[ "$(basename "${SHELL:-}")" == "zsh" ]] || [[ -n "${ZSH_VERSION:-}" ]]; then
+DETECTED_SHELL="$(basename "${SHELL:-bash}")"
+
+if [[ "$DETECTED_SHELL" == "zsh" ]] || [[ -n "${ZSH_VERSION:-}" ]]; then
   add_completion "${HOME}/.zshrc" "source \"${INSTALL_DIR}/completions/yourclaude.zsh\""
+  # Source for the current session
+  # shellcheck disable=SC1090
+  source "${INSTALL_DIR}/completions/yourclaude.zsh" 2>/dev/null || true
 else
   add_completion "${HOME}/.bashrc" "source \"${INSTALL_DIR}/completions/yourclaude.bash\""
   add_completion "${HOME}/.bash_profile" "source \"${INSTALL_DIR}/completions/yourclaude.bash\""
+  # Source for the current session
+  # shellcheck disable=SC1090
+  source "${INSTALL_DIR}/completions/yourclaude.bash" 2>/dev/null || true
 fi
+success "Shell completions active."
 
 # ── 6. Check required CLI tools ─────────────────────────────────────────────────
 BREW_MISSING=()
@@ -175,3 +184,11 @@ else
   echo ""
   exec "${INSTALL_DIR}/yourclaude" setup
 fi
+
+echo ""
+if [[ "$DETECTED_SHELL" == "zsh" ]] || [[ -n "${ZSH_VERSION:-}" ]]; then
+  echo -e "  Reload your shell to activate completions: ${BOLD}source ~/.zshrc${RESET}"
+else
+  echo -e "  Reload your shell to activate completions: ${BOLD}source ~/.bashrc${RESET}"
+fi
+echo ""
