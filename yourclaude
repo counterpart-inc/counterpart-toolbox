@@ -1,0 +1,305 @@
+#!/usr/bin/env bash
+# yourclaude — Counterpart AI toolbox wrapper for claude CLI
+# Usage:
+#   yourclaude               → health check, then launch claude interactive
+#   yourclaude "write tests" → health check, then pass args to claude
+#   yourclaude setup         → re-run setup wizard
+#   yourclaude status        → show health check results without launching claude
+#   yourclaude update        → self-update toolbox + pull latest plugins submodule
+
+set -euo pipefail
+
+# ── Resolve toolbox root ────────────────────────────────────────────────────────
+# If invoked via symlink, resolve the real script path so lib/ and templates/ work
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+export TOOLBOX_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+# ── Load lib scripts ────────────────────────────────────────────────────────────
+# shellcheck source=lib/check_claude.sh
+source "${TOOLBOX_DIR}/lib/check_claude.sh"
+# shellcheck source=lib/check_plugins.sh
+source "${TOOLBOX_DIR}/lib/check_plugins.sh"
+# shellcheck source=lib/check_mcp.sh
+source "${TOOLBOX_DIR}/lib/check_mcp.sh"
+# shellcheck source=lib/check_guidelines.sh
+source "${TOOLBOX_DIR}/lib/check_guidelines.sh"
+
+# ── Constants ───────────────────────────────────────────────────────────────────
+GLOBAL_CONFIG_DIR="${HOME}/.config/counterpart"
+GLOBAL_CONFIG="${GLOBAL_CONFIG_DIR}/config.json"
+TOOLBOX_INSTALL_DIR="${HOME}/.local/share/counterpart-toolbox"
+
+# ── Colour helpers ──────────────────────────────────────────────────────────────
+BOLD="\033[1m"
+RESET="\033[0m"
+CYAN="\033[36m"
+YELLOW="\033[33m"
+
+banner() {
+  echo ""
+  echo -e "${BOLD}${CYAN}  yourclaude — Counterpart AI toolbox${RESET}"
+  echo -e "  ${YELLOW}yourcounterpart.com${RESET}"
+  echo ""
+}
+
+# ── Workspace / config resolution ──────────────────────────────────────────────
+
+load_workspace() {
+  if [[ ! -f "$GLOBAL_CONFIG" ]]; then
+    return 1
+  fi
+  local workspace
+  workspace=$(jq -r '.workspace // empty' "$GLOBAL_CONFIG" 2>/dev/null)
+  # Expand ~ manually because jq returns literal ~
+  workspace="${workspace/#\~/$HOME}"
+  if [[ -z "$workspace" ]]; then
+    return 1
+  fi
+  export COUNTERPART_WORKSPACE="$workspace"
+  export COUNTERPART_CONFIG="${workspace}/.counterpart/config.json"
+  return 0
+}
+
+# ── First-run setup wizard ──────────────────────────────────────────────────────
+
+run_setup() {
+  banner
+  echo -e "${BOLD}First-time setup${RESET}"
+  echo ""
+
+  # 1. Ask for workspace path
+  local default_workspace="${HOME}/projects/work/counterpart"
+  printf "  Where is your Counterpart workspace folder? [%s] " "$default_workspace"
+  read -r workspace </dev/tty
+  workspace="${workspace:-$default_workspace}"
+  # Expand ~
+  workspace="${workspace/#\~/$HOME}"
+
+  # 2. Validate path
+  if [[ ! -d "$workspace" ]]; then
+    echo ""
+    echo "  Directory '$workspace' does not exist."
+    printf "  Create it? [Y/n] "
+    read -r answer </dev/tty
+    answer="${answer:-Y}"
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+      mkdir -p "$workspace"
+      echo "  Created: $workspace"
+    else
+      echo "  Setup aborted. Re-run with: yourclaude setup"
+      exit 1
+    fi
+  fi
+
+  # 3. Create .counterpart/ structure
+  local cp_dir="${workspace}/.counterpart"
+  mkdir -p "$cp_dir"
+
+  # 4. Write default config.json if not present
+  if [[ ! -f "${cp_dir}/config.json" ]]; then
+    cat > "${cp_dir}/config.json" <<'EOF'
+{
+  "version": "1.0.0",
+  "marketplace": "git@github.com:counterpart-inc/counterpart-plugins.git",
+  "required_plugins": ["cmpd"],
+  "mcp_servers": {
+    "linear": "https://mcp.linear.app/sse",
+    "sentry": "https://mcp.sentry.dev/mcp",
+    "context7": "https://mcp.context7.com/mcp"
+  },
+  "guidelines_header": "# Counterpart Guidelines"
+}
+EOF
+    echo "  [✓] Created ${cp_dir}/config.json"
+  fi
+
+  # 5. Copy guidelines template → .counterpart/guidelines.md
+  if [[ ! -f "${cp_dir}/guidelines.md" ]]; then
+    if [[ -f "${TOOLBOX_DIR}/templates/guidelines.md" ]]; then
+      cp "${TOOLBOX_DIR}/templates/guidelines.md" "${cp_dir}/guidelines.md"
+      echo "  [✓] Created ${cp_dir}/guidelines.md"
+    fi
+  fi
+
+  # 6. Write state.json
+  if [[ ! -f "${cp_dir}/state.json" ]]; then
+    echo '{"last_check": null, "installed_versions": {}}' > "${cp_dir}/state.json"
+    echo "  [✓] Created ${cp_dir}/state.json"
+  fi
+
+  # 7. Save global config
+  mkdir -p "$GLOBAL_CONFIG_DIR"
+  # Store path with ~ for readability
+  local stored_workspace="${workspace/#$HOME/\~}"
+  printf '{"workspace": "%s"}\n' "$stored_workspace" > "$GLOBAL_CONFIG"
+  echo "  [✓] Saved global config: $GLOBAL_CONFIG"
+
+  # 8. Export for health check
+  export COUNTERPART_WORKSPACE="$workspace"
+  export COUNTERPART_CONFIG="${cp_dir}/config.json"
+
+  echo ""
+  echo -e "${BOLD}Running health checks...${RESET}"
+  echo ""
+  run_health_checks
+  echo ""
+  echo -e "${BOLD}Setup complete.${RESET} Run 'yourclaude' to launch Claude."
+  echo ""
+}
+
+# ── Update flow ─────────────────────────────────────────────────────────────────
+
+run_update() {
+  banner
+  echo -e "${BOLD}Updating counterpart-toolbox...${RESET}"
+  echo ""
+
+  if [[ ! -d "${TOOLBOX_INSTALL_DIR}/.git" ]]; then
+    echo "  [!] Toolbox git repo not found at ${TOOLBOX_INSTALL_DIR}"
+    echo "      If you installed manually, cd there and run: git pull"
+    echo ""
+  else
+    echo "  Pulling latest toolbox..."
+    git -C "$TOOLBOX_INSTALL_DIR" pull origin main 2>&1 | sed 's/^/  /'
+    echo ""
+
+    echo "  Updating plugins submodule..."
+    git -C "$TOOLBOX_INSTALL_DIR" submodule update --remote --merge 2>&1 | sed 's/^/  /'
+    echo ""
+  fi
+
+  # Re-install/upgrade required plugins
+  if load_workspace && [[ -f "$COUNTERPART_CONFIG" ]]; then
+    local required_plugins
+    mapfile -t required_plugins < <(jq -r '.required_plugins[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
+    if [[ ${#required_plugins[@]} -gt 0 ]]; then
+      echo "  Re-installing plugins..."
+      for plugin in "${required_plugins[@]}"; do
+        echo "    Installing '$plugin'..."
+        claude plugin install "$plugin" 2>&1 | sed 's/^/    /' || echo "    [!] Failed to install '$plugin'"
+      done
+      echo ""
+    fi
+  fi
+
+  echo -e "${BOLD}Update complete.${RESET}"
+  echo ""
+}
+
+# ── Health check runner ─────────────────────────────────────────────────────────
+
+run_health_checks() {
+  local all_ok=0
+
+  # [1] claude CLI
+  check_claude || { all_ok=1; return 1; }
+
+  # [2] & [3] marketplace + plugins
+  check_marketplace
+  check_plugins
+
+  # [4] MCP servers
+  check_mcp_servers || { all_ok=1; return 1; }
+
+  # [5] CLAUDE.md guidelines
+  check_guidelines
+
+  # Update last_check timestamp in state.json
+  local state_file="${COUNTERPART_WORKSPACE}/.counterpart/state.json"
+  if [[ -f "$state_file" ]] && command -v jq &>/dev/null; then
+    local tmp
+    tmp=$(mktemp)
+    jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.last_check = $ts' "$state_file" > "$tmp" && mv "$tmp" "$state_file"
+  fi
+
+  return "$all_ok"
+}
+
+# ── Status subcommand ───────────────────────────────────────────────────────────
+
+run_status() {
+  banner
+  echo -e "${BOLD}Health check${RESET}"
+  echo ""
+
+  if ! load_workspace; then
+    echo "  [!] Not configured. Run: yourclaude setup"
+    echo ""
+    exit 1
+  fi
+
+  run_health_checks
+  echo ""
+
+  local state_file="${COUNTERPART_WORKSPACE}/.counterpart/state.json"
+  if [[ -f "$state_file" ]]; then
+    local last_check
+    last_check=$(jq -r '.last_check // "never"' "$state_file" 2>/dev/null)
+    echo "  Last check: $last_check"
+    echo ""
+  fi
+}
+
+# ── Main entry point ────────────────────────────────────────────────────────────
+
+main() {
+  # Handle subcommands that don't need a workspace check first
+  case "${1:-}" in
+    setup)
+      run_setup
+      exit 0
+      ;;
+    update)
+      run_update
+      exit 0
+      ;;
+    status)
+      run_status
+      exit 0
+      ;;
+    --help|-h|help)
+      banner
+      cat <<'USAGE'
+  Usage:
+    yourclaude               Launch Claude after health checks
+    yourclaude "write tests" Pass arguments to claude
+    yourclaude setup         Re-run setup wizard
+    yourclaude status        Show health check results
+    yourclaude update        Self-update toolbox and plugins
+
+USAGE
+      exit 0
+      ;;
+  esac
+
+  # Normal invocation: health check then launch claude
+  if ! load_workspace; then
+    banner
+    echo "  No configuration found. Running first-time setup..."
+    echo ""
+    run_setup
+    echo ""
+  else
+    # Quiet health checks on each invocation
+    echo ""
+    echo -e "${BOLD}${CYAN}yourclaude${RESET}  checking environment..."
+    echo ""
+
+    if ! run_health_checks; then
+      echo ""
+      echo "  Some checks failed. Run 'yourclaude status' for details."
+      exit 1
+    fi
+    echo ""
+  fi
+
+  # Hand off to claude
+  exec claude "$@"
+}
+
+main "$@"
