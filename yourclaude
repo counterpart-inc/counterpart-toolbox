@@ -330,10 +330,14 @@ run_uninstall() {
       echo ""
       echo "  Removing Claude plugin marketplaces..."
       for marketplace in "${marketplaces[@]}"; do
-        if claude plugin marketplace remove "$marketplace" &>/dev/null; then
-          echo "  [✓] Removed marketplace '$(basename "$marketplace")'."
+        # `claude plugin marketplace remove` takes the registered name, not the URL.
+        # Derive name: strip .git suffix and take the last path component.
+        local mp_name
+        mp_name=$(basename "$marketplace" .git)
+        if claude plugin marketplace remove "$mp_name" &>/dev/null; then
+          echo "  [✓] Removed marketplace '${mp_name}'."
         else
-          echo "  [!] Could not remove marketplace '$(basename "$marketplace")' (may already be gone)."
+          echo "  [!] Could not remove marketplace '${mp_name}' (may already be gone)."
         fi
       done
     fi
