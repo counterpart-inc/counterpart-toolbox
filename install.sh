@@ -166,7 +166,8 @@ else
 fi
 echo ""
 echo -e "  2. Run Claude from your Counterpart workspace:"
-echo -e "     ${BOLD}cd ~/projects/work/counterpart && yourclaude${RESET}"
+_workspace=$(jq -r '.workspace // empty' "${HOME}/.config/counterpart/config.json" 2>/dev/null)
+echo -e "     ${BOLD}cd ${_workspace:-~/projects/work/counterpart} && yourclaude${RESET}"
 echo ""
 echo -e "  3. Inside Claude, authenticate your MCP servers:"
 echo -e "     ${BOLD}/mcp${RESET}"
