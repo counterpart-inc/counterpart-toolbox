@@ -57,9 +57,24 @@ check_plugins() {
 
   for plugin in "${required_plugins[@]}"; do
     if echo "$installed_output" | grep -qF "$plugin"; then
-      local version
+      local version plugin_full update_output
       version=$(echo "$installed_output" | grep -A2 "$plugin" | grep -o 'Version: [0-9.]*' | cut -d' ' -f2)
-      echo "  [✓] Plugin '$plugin' installed${version:+ (v${version})}."
+      # Get the full plugin@marketplace identifier for the update command
+      plugin_full=$(echo "$installed_output" | grep -o "${plugin}@[^ ]*" | head -1)
+      if [[ -n "$plugin_full" ]]; then
+        update_output=$(claude plugin update "$plugin_full" 2>&1 || true)
+        if echo "$update_output" | grep -q "already at the latest"; then
+          echo "  [✓] Plugin '$plugin' (v${version}) up to date."
+        elif echo "$update_output" | grep -qi "updated\|success"; then
+          local new_version
+          new_version=$(echo "$update_output" | grep -o '[0-9]*\.[0-9]*\.[0-9]*' | tail -1)
+          echo "  [↑] Plugin '$plugin' updated v${version} → v${new_version}."
+        else
+          echo "  [✓] Plugin '$plugin' installed${version:+ (v${version})}."
+        fi
+      else
+        echo "  [✓] Plugin '$plugin' installed${version:+ (v${version})}."
+      fi
     else
       echo "  [!] Plugin '$plugin' is not installed."
       printf "      Install '$plugin' now? [Y/n] "
