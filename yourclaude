@@ -55,8 +55,6 @@ load_workspace() {
   fi
   local workspace
   workspace=$(jq -r '.workspace // empty' "$GLOBAL_CONFIG" 2>/dev/null)
-  # Expand ~ manually because jq returns literal ~
-  workspace="${workspace/#\~/$HOME}"
   if [[ -z "$workspace" ]]; then
     return 1
   fi
@@ -134,9 +132,7 @@ EOF
 
   # 7. Save global config
   mkdir -p "$GLOBAL_CONFIG_DIR"
-  # Store path with ~ for readability
-  local stored_workspace="${workspace/#$HOME/\~}"
-  printf '{"workspace": "%s"}\n' "$stored_workspace" > "$GLOBAL_CONFIG"
+  printf '{"workspace": "%s"}\n' "$workspace" > "$GLOBAL_CONFIG"
   echo "  [✓] Saved global config: $GLOBAL_CONFIG"
 
   # 8. Export for health check
