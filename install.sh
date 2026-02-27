@@ -182,7 +182,7 @@ if [[ -f "${HOME}/.config/counterpart/config.json" ]]; then
 else
   echo "  Running first-time setup wizard..."
   echo ""
-  exec "${INSTALL_DIR}/yourclaude" setup
+  "${INSTALL_DIR}/yourclaude" setup
 fi
 
 echo ""
