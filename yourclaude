@@ -248,6 +248,7 @@ run_uninstall() {
   echo "    • ${HOME}/.local/bin/yourclaude  (symlink)"
   echo "    • ${TOOLBOX_INSTALL_DIR}/  (toolbox repo)"
   echo "    • ${GLOBAL_CONFIG_DIR}/  (global config)"
+  echo "    • Required Claude plugins and marketplaces"
 
   if load_workspace 2>/dev/null; then
     echo ""
@@ -291,6 +292,51 @@ run_uninstall() {
   if [[ -d "${HOME}/.claude/plugins/cache" ]]; then
     rm -rf "${HOME}/.claude/plugins/cache"
     echo "  [✓] Cleared Claude plugin cache."
+  fi
+
+  # Uninstall plugins and marketplaces registered by counterpart-toolbox
+  if command -v claude &>/dev/null && [[ -n "${COUNTERPART_CONFIG:-}" && -f "$COUNTERPART_CONFIG" ]]; then
+    # Uninstall required plugins
+    local plugins=()
+    while IFS= read -r plugin; do
+      [[ -n "$plugin" ]] && plugins+=("$plugin")
+    done < <(jq -r '.required_plugins[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
+
+    if [[ ${#plugins[@]} -gt 0 ]]; then
+      echo ""
+      echo "  Uninstalling Claude plugins..."
+      local installed_output
+      installed_output=$(claude plugin list 2>/dev/null || echo "")
+      for plugin in "${plugins[@]}"; do
+        local plugin_full
+        plugin_full=$(echo "$installed_output" | grep -o "${plugin}@[^ ]*" | head -1)
+        local target="${plugin_full:-$plugin}"
+        if claude plugin uninstall "$target" 2>&1 | grep -qiv 'error\|not found\|failed'; then
+          echo "  [✓] Uninstalled plugin '$plugin'."
+        else
+          claude plugin uninstall "$target" &>/dev/null || true
+          echo "  [✓] Uninstalled plugin '$plugin'."
+        fi
+      done
+    fi
+
+    # Remove registered marketplaces
+    local marketplaces=()
+    while IFS= read -r mp; do
+      [[ -n "$mp" ]] && marketplaces+=("$mp")
+    done < <(jq -r '.marketplaces[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
+
+    if [[ ${#marketplaces[@]} -gt 0 ]]; then
+      echo ""
+      echo "  Removing Claude plugin marketplaces..."
+      for marketplace in "${marketplaces[@]}"; do
+        if claude plugin marketplace remove "$marketplace" &>/dev/null; then
+          echo "  [✓] Removed marketplace '$(basename "$marketplace")'."
+        else
+          echo "  [!] Could not remove marketplace '$(basename "$marketplace")' (may already be gone)."
+        fi
+      done
+    fi
   fi
 
   if [[ "${remove_workspace:-N}" =~ ^[Yy]$ && -n "${COUNTERPART_WORKSPACE:-}" ]]; then
