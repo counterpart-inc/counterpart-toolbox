@@ -14,6 +14,8 @@ check_mcp_servers() {
 
   local any_unreachable=0
 
+  echo "  Checking MCP servers (this may take a moment)..."
+
   while IFS="=" read -r name url; do
     if [[ -z "$url" || "$url" == "null" ]]; then
       continue
