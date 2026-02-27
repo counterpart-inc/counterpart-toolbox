@@ -257,6 +257,18 @@ run_uninstall() {
   rm -f "${HOME}/.local/bin/yourclaude"
   echo "  [✓] Removed symlink."
 
+  # Remove completion lines from rc files
+  for rc_file in "${HOME}/.zshrc" "${HOME}/.bashrc" "${HOME}/.bash_profile"; do
+    if [[ -f "$rc_file" ]] && grep -qF 'yourclaude' "$rc_file"; then
+      # Remove the comment line and the source line added by the installer
+      local tmp
+      tmp=$(mktemp)
+      grep -v 'yourclaude' "$rc_file" | grep -v 'counterpart-toolbox installer' > "$tmp"
+      mv "$tmp" "$rc_file"
+      echo "  [✓] Removed completions from ${rc_file}."
+    fi
+  done
+
   if [[ -d "$TOOLBOX_INSTALL_DIR" ]]; then
     rm -rf "$TOOLBOX_INSTALL_DIR"
     echo "  [✓] Removed ${TOOLBOX_INSTALL_DIR}/"
