@@ -11,7 +11,8 @@
 #   2. Initializes the plugins/ submodule (counterpart-plugins)
 #   3. Symlinks yourclaude → ~/.local/bin/yourclaude
 #   4. Adds ~/.local/bin to PATH in .zshrc / .bashrc if not present
-#   5. Runs yourclaude setup (first-time configuration wizard)
+#   5. Registers shell tab completions
+#   6. Runs yourclaude setup (first-time configuration wizard)
 
 set -euo pipefail
 
@@ -100,7 +101,31 @@ fi
 # Make PATH available in current session
 export PATH="${BIN_DIR}:${PATH}"
 
-# ── 5. Verify jq is available ───────────────────────────────────────────────────
+# ── 5. Register shell completions ───────────────────────────────────────────────
+add_completion() {
+  local rc_file="$1"
+  local completion_line="$2"
+  if [[ -f "$rc_file" ]] && grep -qF 'yourclaude' "$rc_file"; then
+    return 0  # already present
+  fi
+  if [[ -f "$rc_file" ]]; then
+    {
+      echo ""
+      echo "# yourclaude shell completion (added by counterpart-toolbox installer)"
+      echo "$completion_line"
+    } >> "$rc_file"
+    info "Registered yourclaude completion in ${rc_file}"
+  fi
+}
+
+if [[ "$(basename "${SHELL:-}")" == "zsh" ]] || [[ -n "${ZSH_VERSION:-}" ]]; then
+  add_completion "${HOME}/.zshrc" "source \"${INSTALL_DIR}/completions/yourclaude.zsh\""
+else
+  add_completion "${HOME}/.bashrc" "source \"${INSTALL_DIR}/completions/yourclaude.bash\""
+  add_completion "${HOME}/.bash_profile" "source \"${INSTALL_DIR}/completions/yourclaude.bash\""
+fi
+
+# ── 6. Verify jq is available ───────────────────────────────────────────────────
 if ! command -v jq &>/dev/null; then
   warn "jq is not installed. yourclaude requires jq to parse config files."
   echo ""
