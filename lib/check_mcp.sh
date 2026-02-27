@@ -21,14 +21,15 @@ check_mcp_servers() {
 
     # Attempt a HEAD request with a 3-second timeout (fall back to GET for SSE endpoints)
     local http_code
-    http_code=$(curl -o /dev/null -s --max-time 3 -w "%{http_code}" --head "$url" 2>/dev/null || echo "000")
+    http_code=$(curl -o /dev/null -s --max-time 3 -w "%{http_code}" --head "$url" 2>/dev/null)
+    http_code="${http_code:-000}"
 
-    # SSE/streaming endpoints often return 405 to HEAD — try GET with range
+    # SSE/streaming endpoints often return 405 to HEAD — try GET for reachability
     if [[ "$http_code" == "000" || "$http_code" == "405" ]]; then
       http_code=$(curl -o /dev/null -s --max-time 3 -w "%{http_code}" \
         -H "Accept: text/event-stream" \
-        --range "0-0" \
-        "$url" 2>/dev/null || echo "000")
+        "$url" 2>/dev/null)
+      http_code="${http_code:-000}"
     fi
 
     if [[ "$http_code" == "000" ]]; then
