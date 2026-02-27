@@ -42,6 +42,23 @@ check_mcp_servers() {
         return 1
       fi
       any_unreachable=1
+    elif [[ "$http_code" == "401" ]]; then
+      # Server is reachable but requires auth — check if already configured in Claude
+      local mcp_configured
+      mcp_configured=$(claude mcp list 2>/dev/null | grep -F "$url" || true)
+      if [[ -z "$mcp_configured" ]]; then
+        echo "  [!] '$name' MCP server reachable but not configured in Claude (HTTP 401)."
+        printf "      Add '$name' to Claude MCP now? [Y/n] "
+        read -r answer </dev/tty
+        answer="${answer:-Y}"
+        if [[ "$answer" =~ ^[Yy]$ ]]; then
+          claude mcp add --transport sse "$name" "$url" 2>&1 && \
+            echo "      [✓] '$name' added to Claude MCP." || \
+            echo "      [✗] Failed to add '$name'. Run manually: claude mcp add --transport sse $name $url"
+        fi
+      else
+        echo "  [✓] '$name' MCP server reachable and configured."
+      fi
     else
       echo "  [✓] '$name' MCP server reachable (HTTP $http_code)."
     fi
