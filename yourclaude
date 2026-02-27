@@ -409,8 +409,12 @@ USAGE
     echo ""
   fi
 
-  # Hand off to claude
-  exec claude "$@"
+  # Hand off to claude — inject guidelines if no CLAUDE.md or header missing
+  if [[ -n "${CLAUDE_INJECT_GUIDELINES:-}" ]]; then
+    exec claude --append-system-prompt "$CLAUDE_INJECT_GUIDELINES" "$@"
+  else
+    exec claude "$@"
+  fi
 }
 
 main "$@"

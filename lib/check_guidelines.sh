@@ -22,16 +22,8 @@ check_guidelines() {
   fi
 
   if [[ ! -f "$target_claude_md" ]]; then
-    echo "  [!] No CLAUDE.md found in current directory ($PWD)."
-    printf "      Create one with Counterpart guidelines? [Y/n] "
-    read -r answer </dev/tty
-    answer="${answer:-Y}"
-    if [[ "$answer" =~ ^[Yy]$ ]]; then
-      echo "$guidelines_content" > "$target_claude_md"
-      echo "  [✓] Created CLAUDE.md with Counterpart guidelines."
-    else
-      echo "      Skipped CLAUDE.md creation."
-    fi
+    echo "  [!] No CLAUDE.md found — guidelines will be injected into Claude's context."
+    export CLAUDE_INJECT_GUIDELINES="$guidelines_content"
     return 0
   fi
 
@@ -40,9 +32,10 @@ check_guidelines() {
     echo "  [✓] CLAUDE.md contains Counterpart guidelines."
   else
     echo "  [!] CLAUDE.md exists but is missing Counterpart guidelines header."
-    printf "      Prepend company guidelines to CLAUDE.md? [Y/n] "
+    echo "      Guidelines will be injected into Claude's context for this session."
+    printf "      Permanently prepend to CLAUDE.md? [y/N] "
     read -r answer </dev/tty
-    answer="${answer:-Y}"
+    answer="${answer:-N}"
     if [[ "$answer" =~ ^[Yy]$ ]]; then
       local tmp
       tmp=$(mktemp)
@@ -56,7 +49,7 @@ check_guidelines() {
       mv "$tmp" "$target_claude_md"
       echo "  [✓] Prepended Counterpart guidelines to CLAUDE.md."
     else
-      echo "      Skipped prepending guidelines."
+      export CLAUDE_INJECT_GUIDELINES="$guidelines_content"
     fi
   fi
 }
