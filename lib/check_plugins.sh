@@ -4,36 +4,41 @@
 # Reads from COUNTERPART_CONFIG (set by yourclaude main script)
 
 check_marketplace() {
-  local marketplace
-  marketplace=$(jq -r '.marketplace // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
+  local registered_list
+  registered_list=$(claude plugin marketplace list 2>/dev/null || true)
 
-  if [[ -z "$marketplace" ]]; then
-    echo "  [!] No marketplace URL configured in config.json — skipping marketplace check."
+  local marketplaces=()
+  while IFS= read -r mp; do
+    [[ -n "$mp" ]] && marketplaces+=("$mp")
+  done < <(jq -r '.marketplaces[]? // .marketplace // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
+
+  if [[ ${#marketplaces[@]} -eq 0 ]]; then
+    echo "  [!] No marketplaces configured in config.json — skipping."
     return 0
   fi
 
-  # Check if marketplace is already registered by looking at claude plugin list output
-  local registered
-  registered=$(claude plugin marketplace list 2>/dev/null | grep -F "$marketplace" || true)
+  for marketplace in "${marketplaces[@]}"; do
+    local registered
+    registered=$(echo "$registered_list" | grep -F "$marketplace" || true)
 
-  if [[ -z "$registered" ]]; then
-    echo "  [!] Counterpart plugin marketplace is not registered."
-    printf "      Register it now? [Y/n] "
-    read -r answer </dev/tty
-    answer="${answer:-Y}"
-    if [[ "$answer" =~ ^[Yy]$ ]]; then
-      echo "      Registering marketplace..."
-      if claude plugin marketplace add "$marketplace" 2>&1; then
-        echo "      [✓] Marketplace registered."
+    if [[ -z "$registered" ]]; then
+      echo "  [!] Marketplace not registered: $marketplace"
+      printf "      Register it now? [Y/n] "
+      read -r answer </dev/tty
+      answer="${answer:-Y}"
+      if [[ "$answer" =~ ^[Yy]$ ]]; then
+        if claude plugin marketplace add "$marketplace" 2>&1; then
+          echo "      [✓] Marketplace registered."
+        else
+          echo "      [✗] Failed to register marketplace. Continuing..."
+        fi
       else
-        echo "      [✗] Failed to register marketplace. Continuing..."
+        echo "      Skipped."
       fi
     else
-      echo "      Skipped marketplace registration."
+      echo "  [✓] Marketplace registered: $(basename "$marketplace")"
     fi
-  else
-    echo "  [✓] Plugin marketplace registered."
-  fi
+  done
 }
 
 check_plugins() {

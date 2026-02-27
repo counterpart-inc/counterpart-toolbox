@@ -103,8 +103,11 @@ run_setup() {
     cat > "${cp_dir}/config.json" <<'EOF'
 {
   "version": "1.0.0",
-  "marketplace": "git@github.com:counterpart-inc/counterpart-plugins.git",
-  "required_plugins": ["compound-engineering"],
+  "marketplaces": [
+    "git@github.com:counterpart-inc/counterpart-plugins.git",
+    "github:anthropics/claude-plugins-official"
+  ],
+  "required_plugins": ["compound-engineering", "pyright-lsp"],
   "mcp_servers": {
     "linear": "https://mcp.linear.app/sse",
     "sentry": "https://mcp.sentry.dev/mcp",
