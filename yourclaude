@@ -73,7 +73,7 @@ run_setup() {
   echo ""
 
   # 1. Ask for workspace path
-  local default_workspace="${HOME}/projects/work/counterpart"
+  local default_workspace="${PWD}"
   printf "  Where is your Counterpart workspace folder? [%s] " "$default_workspace"
   read -r workspace </dev/tty
   workspace="${workspace:-$default_workspace}"
