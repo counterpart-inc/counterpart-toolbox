@@ -106,11 +106,37 @@ counterpart-toolbox/
 
 ---
 
+## Choosing Your Workspace Path
+
+During setup you will be asked:
+
+```
+Where is your Counterpart workspace folder? [/your/current/path]
+```
+
+This should be the **parent directory where all your Counterpart repos are cloned** — not a specific repo. For example, if your repos live like this:
+
+```
+~/projects/work/counterpart/
+├── uas/
+├── uas_frontend/
+├── insurance-platform-cms/
+├── counterpart-toolbox/
+└── counterpart-plugins/
+```
+
+Then your workspace is `~/projects/work/counterpart/`. That is where `yourclaude` creates its `.counterpart/` config folder and where it looks for `CLAUDE.md` guidelines.
+
+---
+
 ## Workspace Structure (created at setup)
 
 ```
-{WORKSPACE}/                       ← the folder you choose during setup
-└── .counterpart/
+{WORKSPACE}/                       ← parent folder of all Counterpart repos
+├── uas/
+├── uas_frontend/
+├── ...
+└── .counterpart/                  ← created by yourclaude setup
     ├── config.json                ← required plugins, tools, MCP URLs, guidelines header
     ├── guidelines.md              ← company guidelines (local copy, editable)
     └── state.json                 ← last check timestamp
