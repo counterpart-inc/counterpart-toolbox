@@ -3,7 +3,7 @@
 
 _yourclaude_completions() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  local subcommands="setup status update reset uninstall help"
+  local subcommands="setup status update reset uninstall help --help -h"
   COMPREPLY=($(compgen -W "$subcommands" -- "$cur"))
 }
 
