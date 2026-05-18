@@ -38,7 +38,7 @@ sync_cursor() {
 - **Single argument**: `agents_dir` — the `.counterpart/` path with `agents/`, `rules/`, `skills/` subdirs
 - Use `_sync_rules`, `_sync_agents`, `_sync_skills` from `_common.sh` for the actual work
 - Pass your provider name as the third arg to `_sync_agents` (see agent directory format below)
-- Omit primitives the provider doesn't support (e.g., Pi has no agents or skills)
+- Omit primitives the provider doesn't support (e.g., Pi has no agents)
 - Print `[✓] {provider}` on success
 
 ### Available primitives (`_common.sh`)

@@ -139,11 +139,11 @@ Setup creates a `.counterpart/` directory inside your Counterpart workspace:
 
 ### Sync targets
 
-| Agent | Rules / agents written to | Skills written to |
-|-------|--------------------------|-------------------|
-| Claude Code | `~/.claude/CLAUDE.md`, `~/.claude/agents/` | `~/.claude/skills/` |
-| OpenCode | `~/.config/opencode/AGENTS.md`, `~/.config/opencode/agents/` | `~/.config/opencode/skills/` |
-| Pi | `~/.pi/AGENTS.md` | — |
+| Agent | Rules written to | Agents written to | Skills written to |
+|-------|-----------------|-------------------|-------------------|
+| Claude Code | `~/.claude/CLAUDE.md` | `~/.claude/agents/` | `~/.claude/skills/` |
+| OpenCode | `~/.config/opencode/AGENTS.md` | `~/.config/opencode/agents/` | `~/.config/opencode/skills/` |
+| Pi | `~/.pi/agent/AGENTS.md` | — (not supported) | `~/.pi/agent/skills/` |
 
 Rules are injected as **managed blocks** between `<!-- counterpart:managed:start -->` and `<!-- counterpart:managed:end -->` markers. Content outside the markers is preserved.
 
