@@ -8,11 +8,10 @@
 #
 # What this script does:
 #   1. Clones counterpart-toolbox to ~/.local/share/counterpart-toolbox/
-#   2. Initializes the plugins/ submodule (counterpart-plugins)
-#   3. Symlinks yourcounterpart → ~/.local/bin/yourcounterpart
-#   4. Adds ~/.local/bin to PATH in .zshrc / .bashrc if not present
-#   5. Registers shell tab completions
-#   6. Runs yourcounterpart setup (first-time configuration wizard)
+#   2. Symlinks yourcounterpart → ~/.local/bin/yourcounterpart
+#   3. Adds ~/.local/bin to PATH in .zshrc / .bashrc if not present
+#   4. Registers shell tab completions
+#   5. Runs yourcounterpart setup (first-time configuration wizard)
 
 set -euo pipefail
 
@@ -48,15 +47,7 @@ else
   success "Cloned."
 fi
 
-# ── 2. Init submodule ───────────────────────────────────────────────────────────
-info "Initializing plugins submodule (counterpart-plugins)..."
-if git -C "$INSTALL_DIR" submodule update --init --recursive 2>&1 | sed 's/^/    /'; then
-  success "Submodule initialized."
-else
-  warn "Submodule init failed (this may be okay if you don't have SSH access yet)."
-fi
-
-# ── 3. Symlink yourcounterpart ───────────────────────────────────────────────────────
+# ── 2. Symlink yourcounterpart ───────────────────────────────────────────────────────
 mkdir -p "$BIN_DIR"
 if [[ -L "$SYMLINK" ]]; then
   info "Updating symlink at ${SYMLINK}..."
@@ -135,17 +126,12 @@ else
 fi
 success "Shell completions active."
 
-# ── 6. Check required CLI tools ─────────────────────────────────────────────────
-# shellcheck source=lib/check_tools.sh
-source "${INSTALL_DIR}/lib/check_tools.sh"
-check_tools "${INSTALL_DIR}/templates/config.json"
-
-# ── 7. Run first-time setup ─────────────────────────────────────────────────────
+# ── 6. Run first-time setup ─────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}Installation complete.${RESET}"
 echo ""
 
-if [[ -f "${HOME}/.config/counterpart/config.json" ]]; then
+if [[ -n "${COUNTERPART_WORKSPACE:-}" && -d "${COUNTERPART_WORKSPACE}/.counterpart" ]]; then
   success "Existing configuration found — skipping setup wizard."
   echo ""
   echo -e "  Run ${BOLD}yourcounterpart status${RESET} to verify your environment."
@@ -166,8 +152,7 @@ else
 fi
 echo ""
 echo -e "  2. Run Claude from your Counterpart workspace:"
-_workspace=$(jq -r '.workspace // empty' "${HOME}/.config/counterpart/config.json" 2>/dev/null)
-echo -e "     ${BOLD}cd ${_workspace:-~/projects/work/counterpart} && yourcounterpart${RESET}"
+echo -e "     ${BOLD}cd \${COUNTERPART_WORKSPACE:-~/projects/work/counterpart} && yourcounterpart${RESET}"
 echo ""
 echo -e "  3. Inside Claude, authenticate your MCP servers:"
 echo -e "     ${BOLD}/mcp${RESET}"

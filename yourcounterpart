@@ -4,7 +4,7 @@
 #   yourcounterpart          → health check, show environment status
 #   yourcounterpart setup    → detect agents, install company context
 #   yourcounterpart sync     → push .counterpart/ content to all providers
-#   yourcounterpart update   → pull latest plugins, update .counterpart/, re-sync
+#   yourcounterpart update   → pull latest toolbox, update .counterpart/, re-sync
 #   yourcounterpart status   → show health check results
 #   yourcounterpart reset    → clear configuration and start fresh
 #   yourcounterpart uninstall → remove yourcounterpart from this machine
@@ -256,10 +256,6 @@ run_update() {
     git -C "$TOOLBOX_INSTALL_DIR" pull origin main 2>&1 | sed 's/^/  /'
     echo ""
 
-    echo "  Updating plugins submodule..."
-    git -C "$TOOLBOX_INSTALL_DIR" submodule update --remote --merge 2>&1 | sed 's/^/  /'
-    echo ""
-
     local version_after
     version_after=$(cat "${TOOLBOX_INSTALL_DIR}/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "unknown")
     if [[ "$version_after" != "$version_before" ]]; then
@@ -270,25 +266,21 @@ run_update() {
     echo ""
   fi
 
-  # Update .counterpart/ from counterpart-plugins
-  local plugins_dir="${TOOLBOX_DIR}/plugins"
+  # Update .counterpart/ from toolbox root
   local cp_dir="${COUNTERPART_WORKSPACE}/.counterpart"
-
-  if [[ -d "${plugins_dir}/.agents" ]]; then
-    echo "  Updating .counterpart from counterpart-plugins..."
-    for type in agents rules; do
-      if [[ -d "${plugins_dir}/.agents/${type}" ]]; then
-        rsync -a --delete "${plugins_dir}/.agents/${type}/" "${cp_dir}/${type}/" 2>/dev/null || \
-          cp -r "${plugins_dir}/.agents/${type}/." "${cp_dir}/${type}/"
-      fi
-    done
-    if [[ -d "${plugins_dir}/.agents/skills" ]]; then
-      rsync -a --delete "${plugins_dir}/.agents/skills/" "${cp_dir}/skills/" 2>/dev/null || \
-        cp -r "${plugins_dir}/.agents/skills/." "${cp_dir}/skills/"
+  echo "  Updating .counterpart from toolbox..."
+  for type in agents rules; do
+    if [[ -d "${TOOLBOX_DIR}/${type}" ]]; then
+      rsync -a --delete "${TOOLBOX_DIR}/${type}/" "${cp_dir}/${type}/" 2>/dev/null || \
+        cp -r "${TOOLBOX_DIR}/${type}/." "${cp_dir}/${type}/"
     fi
-    echo "  [✓] .counterpart updated"
-    echo ""
+  done
+  if [[ -d "${TOOLBOX_DIR}/skills" ]]; then
+    rsync -a --delete "${TOOLBOX_DIR}/skills/" "${cp_dir}/skills/" 2>/dev/null || \
+      cp -r "${TOOLBOX_DIR}/skills/." "${cp_dir}/skills/"
   fi
+  echo "  [✓] .counterpart updated"
+  echo ""
 
   echo -e "${BOLD}Syncing to agents...${RESET}"
   echo ""
@@ -487,7 +479,7 @@ main() {
     yourcounterpart            Check environment status
     yourcounterpart setup      One-time setup: workspace, agents, sync
     yourcounterpart sync       Push .counterpart/ content to all providers
-    yourcounterpart update     Pull latest plugins, update .counterpart/, re-sync
+    yourcounterpart update     Pull latest toolbox, update .counterpart/, re-sync
     yourcounterpart status     Show health check results
     yourcounterpart context    Manage context.lock for current repo
     yourcounterpart reset      Clear configuration and start fresh

@@ -143,8 +143,8 @@ write_agents_lock() {
   command -v jq &>/dev/null || return 0
 
   local commit="unknown"
-  if [[ -n "$toolbox_dir" && -d "${toolbox_dir}/plugins" ]]; then
-    commit=$(git -C "${toolbox_dir}/plugins" rev-parse HEAD 2>/dev/null || echo "unknown")
+  if [[ -n "$toolbox_dir" && -d "${toolbox_dir}/.git" ]]; then
+    commit=$(git -C "${toolbox_dir}" rev-parse HEAD 2>/dev/null || echo "unknown")
   fi
 
   local synced_at
@@ -165,7 +165,7 @@ write_agents_lock() {
     '{
       version: 1,
       sources: {
-        "counterpart-inc/counterpart-plugins": {
+        "counterpart-inc/counterpart-toolbox": {
           commit: $commit,
           syncedAt: $synced_at,
           agents: $agents,
