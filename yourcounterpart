@@ -2,8 +2,9 @@
 # yourcounterpart — Counterpart AI toolbox installer + syncer
 # Usage:
 #   yourcounterpart          → health check, show environment status
-#   yourcounterpart setup    → detect agents, install company context (coming soon)
-#   yourcounterpart update   → pull latest plugins, re-sync (coming soon)
+#   yourcounterpart setup    → detect agents, install company context
+#   yourcounterpart sync     → push .counterpart/ content to all providers
+#   yourcounterpart update   → pull latest plugins, update .counterpart/, re-sync
 #   yourcounterpart status   → show health check results
 #   yourcounterpart reset    → clear configuration and start fresh
 #   yourcounterpart uninstall → remove yourcounterpart from this machine
@@ -11,7 +12,6 @@
 set -euo pipefail
 
 # ── Resolve toolbox root ────────────────────────────────────────────────────────
-# If invoked via symlink, resolve the real script path so lib/ and templates/ work
 SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do
   DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
@@ -25,16 +25,12 @@ export TOOLBOX_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 source "${TOOLBOX_DIR}/lib/check_tools.sh"
 # shellcheck source=lib/check_mcp.sh
 source "${TOOLBOX_DIR}/lib/check_mcp.sh"
-# shellcheck source=lib/check_guidelines.sh
-source "${TOOLBOX_DIR}/lib/check_guidelines.sh"
 # shellcheck source=lib/context-lock.sh
 source "${TOOLBOX_DIR}/lib/context-lock.sh"
 # shellcheck source=lib/sync.sh
 source "${TOOLBOX_DIR}/lib/sync.sh"
 
 # ── Constants ───────────────────────────────────────────────────────────────────
-GLOBAL_CONFIG_DIR="${HOME}/.config/counterpart"
-GLOBAL_CONFIG="${GLOBAL_CONFIG_DIR}/config.json"
 TOOLBOX_INSTALL_DIR="${HOME}/.local/share/counterpart-toolbox"
 TOOLBOX_VERSION="$(cat "${TOOLBOX_DIR}/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "unknown")"
 
@@ -52,8 +48,6 @@ banner() {
 }
 
 # ── Update check ─────────────────────────────────────────────────────────────────
-# Instant: compares local VERSION against last-fetched remote state (no network call).
-# Background fetch at end of each run keeps remote state fresh for the next invocation.
 
 check_for_update() {
   [[ ! -d "${TOOLBOX_INSTALL_DIR}/.git" ]] && return 0
@@ -65,158 +59,180 @@ check_for_update() {
   fi
 }
 
-# Triggers a non-blocking background fetch so the next run's check_for_update has fresh data.
 trigger_background_fetch() {
   [[ ! -d "${TOOLBOX_INSTALL_DIR}/.git" ]] && return 0
   git -C "$TOOLBOX_INSTALL_DIR" fetch origin main --quiet 2>/dev/null &
 }
 
-# ── Workspace / config resolution ──────────────────────────────────────────────
+# ── Workspace resolution ────────────────────────────────────────────────────────
 
 load_workspace() {
-  if [[ ! -f "$GLOBAL_CONFIG" ]]; then
+  if [[ -z "${COUNTERPART_WORKSPACE:-}" ]]; then
     return 1
   fi
-  local workspace
-  workspace=$(jq -r '.workspace // empty' "$GLOBAL_CONFIG" 2>/dev/null)
-  if [[ -z "$workspace" ]]; then
+  if [[ ! -d "$COUNTERPART_WORKSPACE" ]]; then
     return 1
   fi
-  export COUNTERPART_WORKSPACE="$workspace"
-  export COUNTERPART_CONFIG="${workspace}/.counterpart/config.json"
+  export COUNTERPART_CONFIG="${COUNTERPART_WORKSPACE}/.counterpart/config.json"
   return 0
 }
 
-# ── First-run setup wizard ──────────────────────────────────────────────────────
+_inject_workspace_env() {
+  local workspace="$1"
+  local export_line="export COUNTERPART_WORKSPACE=\"${workspace}\""
+  for rc_file in "${HOME}/.zshrc" "${HOME}/.bashrc"; do
+    [[ ! -f "$rc_file" ]] && continue
+    if grep -qF "COUNTERPART_WORKSPACE" "$rc_file"; then
+      local tmp; tmp=$(mktemp)
+      grep -v "COUNTERPART_WORKSPACE" "$rc_file" > "$tmp"
+      printf '\n%s\n' "$export_line" >> "$tmp"
+      mv "$tmp" "$rc_file"
+    else
+      printf '\n%s\n' "$export_line" >> "$rc_file"
+    fi
+    echo "  [✓] Set COUNTERPART_WORKSPACE in ${rc_file}"
+  done
+  export COUNTERPART_WORKSPACE="$workspace"
+}
+
+# ── Boilerplate copy ────────────────────────────────────────────────────────────
+
+_copy_boilerplate() {
+  local cp_dir="$1"
+  local bp_dir="${TOOLBOX_DIR}"
+  [[ ! -d "$bp_dir" ]] && return 0
+
+  for type in agents rules; do
+    if [[ -d "${bp_dir}/${type}" ]] && [[ -z "$(ls -A "${cp_dir}/${type}" 2>/dev/null)" ]]; then
+      cp -r "${bp_dir}/${type}/." "${cp_dir}/${type}/"
+    fi
+  done
+
+  if [[ -d "${bp_dir}/skills" ]]; then
+    for skill_dir in "${bp_dir}/skills"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      local sname; sname=$(basename "$skill_dir")
+      [[ ! -d "${cp_dir}/skills/${sname}" ]] && cp -r "$skill_dir" "${cp_dir}/skills/${sname}"
+    done
+  fi
+}
+
+# ── Internal sync ───────────────────────────────────────────────────────────────
+
+_do_sync() {
+  local cp_dir="$1"
+  sync_global "$cp_dir"
+  write_agents_lock "$cp_dir" "$TOOLBOX_DIR" "${COUNTERPART_WORKSPACE}"
+  if [[ -f "$COUNTERPART_CONFIG" ]] && command -v jq &>/dev/null; then
+    local tmp; tmp=$(mktemp)
+    jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.last_sync = $ts' "$COUNTERPART_CONFIG" > "$tmp" && mv "$tmp" "$COUNTERPART_CONFIG"
+  fi
+}
+
+# ── Setup flow ──────────────────────────────────────────────────────────────────
 
 run_setup() {
   banner
   echo -e "${BOLD}First-time setup${RESET}"
   echo ""
 
-  # 1. Ask for workspace path
+  # 1. Workspace path
   local default_workspace="${PWD}"
-  printf "  Where is your Counterpart workspace folder? [%s] " "$default_workspace"
+  printf "  Workspace folder [%s]: " "$default_workspace"
   read -r workspace </dev/tty
   workspace="${workspace:-$default_workspace}"
-  # Expand ~
   workspace="${workspace/#\~/$HOME}"
 
-  # 2. Validate path
   if [[ ! -d "$workspace" ]]; then
-    echo ""
-    echo "  Directory '$workspace' does not exist."
-    printf "  Create it? [Y/n] "
+    printf "  '%s' does not exist. Create it? [Y/n] " "$workspace"
     read -r answer </dev/tty
-    answer="${answer:-Y}"
-    if [[ "$answer" =~ ^[Yy]$ ]]; then
-      mkdir -p "$workspace"
-      echo "  Created: $workspace"
-    else
-      echo "  Setup aborted. Re-run with: yourcounterpart setup"
-      exit 1
-    fi
+    [[ "${answer:-Y}" =~ ^[Yy]$ ]] || { echo "  Aborted."; exit 1; }
+    mkdir -p "$workspace"
   fi
 
-  # 3. Create .counterpart/ structure
+  # 2. Create .counterpart/ structure
   local cp_dir="${workspace}/.counterpart"
-  mkdir -p "$cp_dir"
+  mkdir -p "${cp_dir}/agents" "${cp_dir}/skills" "${cp_dir}/rules"
 
-  # 4. Write default config.json if not present
-  if [[ ! -f "${cp_dir}/config.json" ]]; then
-    if [[ -f "${TOOLBOX_DIR}/templates/config.json" ]]; then
-      cp "${TOOLBOX_DIR}/templates/config.json" "${cp_dir}/config.json"
-    else
-      cat > "${cp_dir}/config.json" <<'EOF'
-{
-  "version": "1.0.0",
-  "marketplaces": [
-    "git@github.com:counterpart-inc/counterpart-plugins.git",
-    "anthropics/claude-plugins-official"
-  ],
-  "required_plugins": ["cmpd", "hire", "plugin-dev", "pyright-lsp"],
-  "required_tools": [
-    {"cmd": "jq",       "brew": "jq"},
-    {"cmd": "rg",       "brew": "ripgrep"},
-    {"cmd": "ast-grep", "brew": "ast-grep"}
-  ],
-  "mcp_servers": {
-    "linear":   "https://mcp.linear.app/sse",
-    "sentry":   "https://mcp.sentry.dev/mcp",
-    "context7": "https://mcp.context7.com/mcp"
-  },
-  "guidelines_header": "# Counterpart Guidelines"
-}
-EOF
-    fi
-    echo "  [✓] Created ${cp_dir}/config.json"
-  fi
+  # 3. Copy boilerplate
+  _copy_boilerplate "$cp_dir"
+  echo "  [✓] Created ${cp_dir}/"
+  echo ""
 
-  # 5. Copy guidelines template → .counterpart/guidelines.md
-  if [[ ! -f "${cp_dir}/guidelines.md" ]]; then
-    if [[ -f "${TOOLBOX_DIR}/templates/guidelines.md" ]]; then
-      cp "${TOOLBOX_DIR}/templates/guidelines.md" "${cp_dir}/guidelines.md"
-      echo "  [✓] Created ${cp_dir}/guidelines.md"
-    fi
-  fi
-
-  # 6. Write state.json
-  if [[ ! -f "${cp_dir}/state.json" ]]; then
-    echo '{"last_check": null, "installed_versions": {}}' > "${cp_dir}/state.json"
-    echo "  [✓] Created ${cp_dir}/state.json"
-  fi
-
-  # 7. Ensure global config dir exists (providers written after detection below)
-  mkdir -p "$GLOBAL_CONFIG_DIR"
-
-  # 8. Export for health check
-  export COUNTERPART_WORKSPACE="$workspace"
+  # 4. Inject COUNTERPART_WORKSPACE into shell rc
+  _inject_workspace_env "$workspace"
   export COUNTERPART_CONFIG="${cp_dir}/config.json"
-
-  echo ""
-  echo -e "${BOLD}Running health checks...${RESET}"
-  echo ""
-  run_health_checks
   echo ""
 
+  # 5. Detect providers
   echo -e "${BOLD}Detecting AI agents...${RESET}"
   echo ""
   local detected_providers=()
-  command -v claude &>/dev/null && detected_providers+=("claude") && echo "  [✓] Claude Code detected"
-  [[ -d "${HOME}/.cursor" ]] && detected_providers+=("cursor") && echo "  [✓] Cursor detected"
-  command -v opencode &>/dev/null && detected_providers+=("opencode") && echo "  [✓] OpenCode detected"
-  [[ -d "${HOME}/.config/github-copilot" ]] && detected_providers+=("copilot") && echo "  [✓] Copilot detected"
-  [[ -d "${HOME}/.gemini" ]] && detected_providers+=("gemini") && echo "  [✓] Gemini detected"
-  [[ -d "${HOME}/.pi" ]] && detected_providers+=("pi") && echo "  [✓] Pi detected"
+  command -v claude &>/dev/null    && detected_providers+=("claude")   && echo "  [✓] Claude Code"
+  [[ -d "${HOME}/.cursor" ]]       && detected_providers+=("cursor")   && echo "  [✓] Cursor"
+  command -v opencode &>/dev/null  && detected_providers+=("opencode") && echo "  [✓] OpenCode"
+  [[ -d "${HOME}/.config/github-copilot" ]] && detected_providers+=("copilot") && echo "  [✓] Copilot"
+  [[ -d "${HOME}/.gemini" ]]       && detected_providers+=("gemini")   && echo "  [✓] Gemini"
+  [[ -d "${HOME}/.pi" ]]           && detected_providers+=("pi")       && echo "  [✓] Pi"
   echo ""
 
+  # 6. Write config.json
   local providers_json
   providers_json=$(printf '%s\n' "${detected_providers[@]}" | jq -Rsc 'split("\n") | map(select(length>0))' 2>/dev/null || echo "[]")
-  local last_setup
-  last_setup=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   jq -n \
     --arg workspace "$workspace" \
     --argjson providers "$providers_json" \
-    --arg last_setup "$last_setup" \
-    '{"workspace": $workspace, "providers": $providers, "last_setup": $last_setup}' \
-    > "$GLOBAL_CONFIG"
-  echo "  [✓] Saved global config: $GLOBAL_CONFIG"
+    '{
+      workspace: $workspace,
+      providers: $providers,
+      last_sync: "",
+      required_tools: [
+        {"cmd": "jq",       "brew": "jq"},
+        {"cmd": "rg",       "brew": "ripgrep"},
+        {"cmd": "ast-grep", "brew": "ast-grep"}
+      ],
+      mcp_servers: {
+        linear:   "https://mcp.linear.app/sse",
+        sentry:   "https://mcp.sentry.dev/mcp",
+        context7: "https://mcp.context7.com/mcp"
+      }
+    }' > "$COUNTERPART_CONFIG"
+  echo "  [✓] Config: $COUNTERPART_CONFIG"
+  echo ""
 
-  local plugins_dir="${TOOLBOX_DIR}/plugins"
-  local global_agents_dir="${HOME}/.agents"
+  # 7. Health checks
+  echo -e "${BOLD}Health checks...${RESET}"
+  echo ""
+  check_tools
+  echo ""
+  check_mcp_servers
+  echo ""
 
-  if [[ -d "$plugins_dir/.agents" ]]; then
-    echo -e "${BOLD}Syncing company context...${RESET}"
-    echo ""
-    mkdir -p "$global_agents_dir/rules" "$global_agents_dir/skills"
-    rsync -a --delete "${plugins_dir}/.agents/" "${global_agents_dir}/" 2>/dev/null || \
-      cp -r "${plugins_dir}/.agents/." "${global_agents_dir}/"
-    sync_global "$global_agents_dir"
-    write_agents_lock "$global_agents_dir" "$TOOLBOX_DIR"
-    echo ""
-  fi
+  # 8. Sync to providers
+  echo -e "${BOLD}Syncing to agents...${RESET}"
+  echo ""
+  _do_sync "$cp_dir"
+  echo ""
 
   echo -e "${BOLD}Setup complete.${RESET} Open your AI agent — company context is already configured."
+  echo ""
+}
+
+# ── Sync flow ───────────────────────────────────────────────────────────────────
+
+run_sync() {
+  banner
+  if ! load_workspace; then
+    echo "  [!] COUNTERPART_WORKSPACE not set. Run: yourcounterpart setup"
+    echo ""
+    exit 1
+  fi
+
+  echo -e "${BOLD}Syncing to agents...${RESET}"
+  echo ""
+  _do_sync "${COUNTERPART_WORKSPACE}/.counterpart"
+  echo ""
+  echo -e "${BOLD}Sync complete.${RESET}"
   echo ""
 }
 
@@ -224,14 +240,16 @@ EOF
 
 run_update() {
   banner
+  if ! load_workspace; then
+    echo "  [!] COUNTERPART_WORKSPACE not set. Run: yourcounterpart setup"
+    echo ""
+    exit 1
+  fi
+
   echo -e "${BOLD}Updating counterpart-toolbox...${RESET}"
   echo ""
 
-  if [[ ! -d "${TOOLBOX_INSTALL_DIR}/.git" ]]; then
-    echo "  [!] Toolbox git repo not found at ${TOOLBOX_INSTALL_DIR}"
-    echo "      If you installed manually, cd there and run: git pull"
-    echo ""
-  else
+  if [[ -d "${TOOLBOX_INSTALL_DIR}/.git" ]]; then
     local version_before="$TOOLBOX_VERSION"
 
     echo "  Pulling latest toolbox..."
@@ -247,32 +265,35 @@ run_update() {
     if [[ "$version_after" != "$version_before" ]]; then
       echo "  [✓] Toolbox updated: v${version_before} → v${version_after}"
     else
-      echo "  [✓] Toolbox already at v${version_after} — no new version."
+      echo "  [✓] Toolbox already at v${version_after}"
     fi
     echo ""
   fi
 
-  local global_agents_dir="${HOME}/.agents"
+  # Update .counterpart/ from counterpart-plugins
   local plugins_dir="${TOOLBOX_DIR}/plugins"
+  local cp_dir="${COUNTERPART_WORKSPACE}/.counterpart"
 
-  local configured_providers=""
-  if [[ -f "$GLOBAL_CONFIG" ]] && command -v jq &>/dev/null; then
-    configured_providers=$(jq -r '(.providers // []) | join(", ")' "$GLOBAL_CONFIG" 2>/dev/null)
-  fi
-  [[ -n "$configured_providers" ]] && echo "  Providers: ${configured_providers}" && echo ""
-
-  if [[ -d "$plugins_dir/.agents" ]]; then
-    echo "  Syncing company context to agents..."
-    mkdir -p "$global_agents_dir"
-    rsync -a --delete "${plugins_dir}/.agents/" "${global_agents_dir}/" 2>/dev/null || \
-      cp -r "${plugins_dir}/.agents/." "${global_agents_dir}/"
-    sync_global "$global_agents_dir"
-    write_agents_lock "$global_agents_dir" "$TOOLBOX_DIR"
-    if [[ -d "$PWD/.agents" ]]; then
-      sync_local "$PWD" "$PWD/.agents"
+  if [[ -d "${plugins_dir}/.agents" ]]; then
+    echo "  Updating .counterpart from counterpart-plugins..."
+    for type in agents rules; do
+      if [[ -d "${plugins_dir}/.agents/${type}" ]]; then
+        rsync -a --delete "${plugins_dir}/.agents/${type}/" "${cp_dir}/${type}/" 2>/dev/null || \
+          cp -r "${plugins_dir}/.agents/${type}/." "${cp_dir}/${type}/"
+      fi
+    done
+    if [[ -d "${plugins_dir}/.agents/skills" ]]; then
+      rsync -a --delete "${plugins_dir}/.agents/skills/" "${cp_dir}/skills/" 2>/dev/null || \
+        cp -r "${plugins_dir}/.agents/skills/." "${cp_dir}/skills/"
     fi
+    echo "  [✓] .counterpart updated"
     echo ""
   fi
+
+  echo -e "${BOLD}Syncing to agents...${RESET}"
+  echo ""
+  _do_sync "$cp_dir"
+  echo ""
 
   echo -e "${BOLD}Update complete.${RESET}"
   echo ""
@@ -285,28 +306,28 @@ run_reset() {
   echo -e "${BOLD}Reset yourcounterpart configuration${RESET}"
   echo ""
   echo "  This will delete:"
-  echo "    • ${GLOBAL_CONFIG}  (global config)"
-
-  if load_workspace 2>/dev/null; then
-    echo "    • ${COUNTERPART_WORKSPACE}/.counterpart/  (workspace state)"
+  if [[ -n "${COUNTERPART_WORKSPACE:-}" ]]; then
+    echo "    • ${COUNTERPART_WORKSPACE}/.counterpart/  (workspace config + agents)"
   fi
-
+  echo "    • COUNTERPART_WORKSPACE from ~/.zshrc / ~/.bashrc"
   echo ""
   printf "  Are you sure? [y/N] "
   read -r answer </dev/tty
-  answer="${answer:-N}"
-  if [[ ! "$answer" =~ ^[Yy]$ ]]; then
-    echo "  Aborted."
-    exit 0
-  fi
-
-  rm -f "$GLOBAL_CONFIG"
-  echo "  [✓] Removed global config."
+  [[ "${answer:-N}" =~ ^[Yy]$ ]] || { echo "  Aborted."; exit 0; }
 
   if [[ -n "${COUNTERPART_WORKSPACE:-}" && -d "${COUNTERPART_WORKSPACE}/.counterpart" ]]; then
     rm -rf "${COUNTERPART_WORKSPACE}/.counterpart"
     echo "  [✓] Removed ${COUNTERPART_WORKSPACE}/.counterpart/"
   fi
+
+  for rc_file in "${HOME}/.zshrc" "${HOME}/.bashrc"; do
+    if [[ -f "$rc_file" ]] && grep -qF "COUNTERPART_WORKSPACE" "$rc_file"; then
+      local tmp; tmp=$(mktemp)
+      grep -v "COUNTERPART_WORKSPACE" "$rc_file" > "$tmp"
+      mv "$tmp" "$rc_file"
+      echo "  [✓] Removed COUNTERPART_WORKSPACE from ${rc_file}"
+    fi
+  done
 
   echo ""
   echo -e "${BOLD}Reset complete.${RESET} Run 'yourcounterpart setup' to reconfigure."
@@ -322,10 +343,8 @@ run_uninstall() {
   echo "  This will delete:"
   echo "    • ${HOME}/.local/bin/yourcounterpart  (symlink)"
   echo "    • ${TOOLBOX_INSTALL_DIR}/  (toolbox repo)"
-  echo "    • ${GLOBAL_CONFIG_DIR}/  (global config)"
-  echo "    • Required Claude plugins and marketplaces"
-
-  if load_workspace 2>/dev/null; then
+  echo "    • COUNTERPART_WORKSPACE from shell rc files"
+  if [[ -n "${COUNTERPART_WORKSPACE:-}" ]]; then
     echo ""
     printf "  Also remove workspace config (%s/.counterpart/)? [y/N] " "$COUNTERPART_WORKSPACE"
     read -r remove_workspace </dev/tty
@@ -335,38 +354,23 @@ run_uninstall() {
   echo ""
   printf "  Are you sure you want to uninstall? [y/N] "
   read -r answer </dev/tty
-  answer="${answer:-N}"
-  if [[ ! "$answer" =~ ^[Yy]$ ]]; then
-    echo "  Aborted."
-    exit 0
-  fi
+  [[ "${answer:-N}" =~ ^[Yy]$ ]] || { echo "  Aborted."; exit 0; }
 
   rm -f "${HOME}/.local/bin/yourcounterpart"
   echo "  [✓] Removed symlink."
 
-  # Remove completion lines from rc files
   for rc_file in "${HOME}/.zshrc" "${HOME}/.bashrc" "${HOME}/.bash_profile"; do
     if [[ -f "$rc_file" ]] && grep -qF 'yourcounterpart' "$rc_file"; then
-      # Remove the comment line and the source line added by the installer
-      local tmp
-      tmp=$(mktemp)
-      grep -v 'yourcounterpart' "$rc_file" | grep -v 'counterpart-toolbox installer' > "$tmp"
+      local tmp; tmp=$(mktemp)
+      grep -v 'yourcounterpart' "$rc_file" | grep -v 'counterpart-toolbox installer' | grep -v 'COUNTERPART_WORKSPACE' > "$tmp"
       mv "$tmp" "$rc_file"
-      echo "  [✓] Removed completions from ${rc_file}."
+      echo "  [✓] Cleaned ${rc_file}"
     fi
   done
 
   if [[ -d "$TOOLBOX_INSTALL_DIR" ]]; then
     rm -rf "$TOOLBOX_INSTALL_DIR"
     echo "  [✓] Removed ${TOOLBOX_INSTALL_DIR}/"
-  fi
-
-  rm -rf "$GLOBAL_CONFIG_DIR"
-  echo "  [✓] Removed ${GLOBAL_CONFIG_DIR}/"
-
-  if [[ -d "${HOME}/.claude/plugins/cache" ]]; then
-    rm -rf "${HOME}/.claude/plugins/cache"
-    echo "  [✓] Cleared Claude plugin cache."
   fi
 
   if [[ "${remove_workspace:-N}" =~ ^[Yy]$ && -n "${COUNTERPART_WORKSPACE:-}" ]]; then
@@ -379,81 +383,47 @@ run_uninstall() {
   echo ""
 }
 
-# ── Health check runner ─────────────────────────────────────────────────────────
-
-run_health_checks() {
-  local all_ok=0
-
-  # [1] required CLI tools (jq, ripgrep, etc.)
-  check_tools
-
-  # [2] MCP servers
-  check_mcp_servers || { all_ok=1; return 1; }
-
-  # [3] guidelines
-  check_guidelines
-
-  # Update last_check timestamp in state.json
-  local state_file="${COUNTERPART_WORKSPACE}/.counterpart/state.json"
-  if [[ -f "$state_file" ]] && command -v jq &>/dev/null; then
-    local tmp
-    tmp=$(mktemp)
-    jq --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.last_check = $ts' "$state_file" > "$tmp" && mv "$tmp" "$state_file"
-  fi
-
-  return "$all_ok"
-}
-
 # ── Status subcommand ───────────────────────────────────────────────────────────
 
 run_status() {
   banner
-  echo -e "${BOLD}Health check${RESET}"
-  echo ""
-
   if ! load_workspace; then
-    echo "  [!] Not configured. Run: yourcounterpart setup"
+    echo "  [!] COUNTERPART_WORKSPACE not set. Run: yourcounterpart setup"
     echo ""
     exit 1
   fi
 
   check_for_update
-  run_health_checks
+  echo "  Version:    v${TOOLBOX_VERSION}"
+  echo "  Workspace:  ${COUNTERPART_WORKSPACE}"
   echo ""
 
-  local state_file="${COUNTERPART_WORKSPACE}/.counterpart/state.json"
-  if [[ -f "$state_file" ]]; then
-    local last_check
-    last_check=$(jq -r '.last_check // "never"' "$state_file" 2>/dev/null)
-    echo "  Version:    v${TOOLBOX_VERSION}"
-    echo "  Last check: $last_check"
-    echo ""
+  if command -v jq &>/dev/null && [[ -f "$COUNTERPART_CONFIG" ]]; then
+    local providers last_sync
+    providers=$(jq -r '(.providers // []) | join(", ")' "$COUNTERPART_CONFIG" 2>/dev/null)
+    last_sync=$(jq -r '.last_sync // "never"' "$COUNTERPART_CONFIG" 2>/dev/null)
+    echo "  Providers:  ${providers:-(none)}"
+    echo "  Last sync:  ${last_sync:-never}"
   fi
 
-  if command -v jq &>/dev/null; then
-    local providers="(none)"
-    if [[ -f "$GLOBAL_CONFIG" ]]; then
-      local p
-      p=$(jq -r '(.providers // []) | join(", ")' "$GLOBAL_CONFIG" 2>/dev/null)
-      [[ -n "$p" ]] && providers="$p"
-    fi
-    echo "  Providers:  $providers"
-
-    local lock_file="${HOME}/.agents/toolbox.lock"
-    if [[ -f "$lock_file" ]]; then
-      local synced_at commit rule_count skill_count
-      synced_at=$(jq -r '.sources | to_entries[0].value.syncedAt // "unknown"' "$lock_file" 2>/dev/null)
-      commit=$(jq -r '.sources | to_entries[0].value.commit // "unknown"' "$lock_file" 2>/dev/null | cut -c1-7)
-      rule_count=$(jq -r '.sources | to_entries[0].value.rules | length' "$lock_file" 2>/dev/null || echo "0")
-      skill_count=$(jq -r '.sources | to_entries[0].value.skills | length' "$lock_file" 2>/dev/null || echo "0")
-      echo "  Last sync:  ${synced_at} (plugins @ ${commit})"
-      echo "  Rules:      ${rule_count} installed"
-      echo "  Skills:     ${skill_count} installed"
-    else
-      echo "  Last sync:  never — run: yourcounterpart setup"
-    fi
-    echo ""
+  local lock_file="${COUNTERPART_WORKSPACE}/.counterpart/toolbox.lock"
+  if [[ -f "$lock_file" ]] && command -v jq &>/dev/null; then
+    local commit rule_count skill_count
+    commit=$(jq -r '.sources | to_entries[0].value.commit // "unknown"' "$lock_file" 2>/dev/null | cut -c1-7)
+    rule_count=$(jq -r '.sources | to_entries[0].value.rules | length' "$lock_file" 2>/dev/null || echo "0")
+    skill_count=$(jq -r '.sources | to_entries[0].value.skills | length' "$lock_file" 2>/dev/null || echo "0")
+    echo "  Plugins @:  ${commit}"
+    echo "  Rules:      ${rule_count}"
+    echo "  Skills:     ${skill_count}"
   fi
+
+  echo ""
+  echo -e "${BOLD}Health checks${RESET}"
+  echo ""
+  check_tools
+  echo ""
+  check_mcp_servers
+  echo ""
 
   if [[ -f "${PWD}/context.lock" ]]; then
     if context_lock_validate "context" "context.lock" "$PWD" &>/dev/null; then
@@ -468,10 +438,13 @@ run_status() {
 # ── Main entry point ────────────────────────────────────────────────────────────
 
 main() {
-  # Handle subcommands that don't need a workspace check first
   case "${1:-}" in
     setup)
       run_setup
+      exit 0
+      ;;
+    sync)
+      run_sync
       exit 0
       ;;
     update)
@@ -512,9 +485,11 @@ main() {
       cat <<'USAGE'
   Usage:
     yourcounterpart            Check environment status
-    yourcounterpart setup      Detect agents, install company context
-    yourcounterpart update     Pull latest plugins and re-sync
+    yourcounterpart setup      One-time setup: workspace, agents, sync
+    yourcounterpart sync       Push .counterpart/ content to all providers
+    yourcounterpart update     Pull latest plugins, update .counterpart/, re-sync
     yourcounterpart status     Show health check results
+    yourcounterpart context    Manage context.lock for current repo
     yourcounterpart reset      Clear configuration and start fresh
     yourcounterpart uninstall  Remove yourcounterpart from this machine
 
@@ -523,32 +498,22 @@ USAGE
       ;;
   esac
 
-  # Normal invocation: health check and show status
   if ! load_workspace; then
     banner
     echo "  No configuration found. Running first-time setup..."
     echo ""
     run_setup
-    echo ""
   else
-    # Quiet health checks on each invocation
     echo ""
     echo -e "${BOLD}${CYAN}yourcounterpart${RESET}  v${TOOLBOX_VERSION}  checking environment..."
     echo ""
-
     check_for_update
-
-    if ! run_health_checks; then
-      echo ""
-      echo "  Some checks failed. Run 'yourcounterpart status' for details."
-      exit 1
-    fi
+    check_tools
+    echo ""
+    trigger_background_fetch
+    echo "  Environment ready. Open your AI agent — company context is already configured."
     echo ""
   fi
-
-  trigger_background_fetch
-  echo "  Environment ready. Open your AI agent — company context is already configured."
-  echo ""
 }
 
 main "$@"

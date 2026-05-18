@@ -135,9 +135,10 @@ sync_local() {
 }
 
 write_agents_lock() {
-  local agents_dir="${1:-${HOME}/.agents}"
+  local agents_dir="${1:-}"
   local toolbox_dir="${2:-}"
-  local lock_file="${HOME}/.agents/toolbox.lock"
+  local workspace="${3:-${COUNTERPART_WORKSPACE:-}}"
+  local lock_file="${workspace}/.counterpart/toolbox.lock"
 
   command -v jq &>/dev/null || return 0
 
