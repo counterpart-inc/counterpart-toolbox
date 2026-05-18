@@ -33,6 +33,7 @@ source "${TOOLBOX_DIR}/lib/sync.sh"
 # ── Constants ───────────────────────────────────────────────────────────────────
 TOOLBOX_INSTALL_DIR="${HOME}/.local/share/counterpart-toolbox"
 TOOLBOX_VERSION="$(cat "${TOOLBOX_DIR}/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "unknown")"
+WORKSPACE_FILE="${HOME}/.config/counterpart/workspace"
 
 # ── Colour helpers ──────────────────────────────────────────────────────────────
 BOLD="\033[1m"
@@ -67,18 +68,22 @@ trigger_background_fetch() {
 # ── Workspace resolution ────────────────────────────────────────────────────────
 
 load_workspace() {
-  if [[ -z "${COUNTERPART_WORKSPACE:-}" ]]; then
+  local ws="${COUNTERPART_WORKSPACE:-}"
+  if [[ -z "$ws" && -f "$WORKSPACE_FILE" ]]; then
+    ws=$(cat "$WORKSPACE_FILE" 2>/dev/null | tr -d '[:space:]')
+  fi
+  if [[ -z "$ws" || ! -d "$ws" || ! -d "${ws}/.counterpart" ]]; then
     return 1
   fi
-  if [[ ! -d "$COUNTERPART_WORKSPACE" ]]; then
-    return 1
-  fi
-  export COUNTERPART_CONFIG="${COUNTERPART_WORKSPACE}/.counterpart/config.json"
+  export COUNTERPART_WORKSPACE="$ws"
+  export COUNTERPART_CONFIG="${ws}/.counterpart/config.json"
   return 0
 }
 
 _inject_workspace_env() {
   local workspace="$1"
+  mkdir -p "$(dirname "$WORKSPACE_FILE")"
+  echo "$workspace" > "$WORKSPACE_FILE"
   local export_line="export COUNTERPART_WORKSPACE=\"${workspace}\""
   for rc_file in "${HOME}/.zshrc" "${HOME}/.bashrc"; do
     if [[ ! -f "$rc_file" ]]; then continue; fi
@@ -303,6 +308,7 @@ run_reset() {
   if [[ -n "${COUNTERPART_WORKSPACE:-}" ]]; then
     echo "    • ${COUNTERPART_WORKSPACE}/.counterpart/  (workspace config + agents)"
   fi
+  echo "    • ${WORKSPACE_FILE}"
   echo "    • COUNTERPART_WORKSPACE from ~/.zshrc / ~/.bashrc"
   echo ""
   printf "  Are you sure? [y/N] "
@@ -313,6 +319,9 @@ run_reset() {
     rm -rf "${COUNTERPART_WORKSPACE}/.counterpart"
     echo "  [✓] Removed ${COUNTERPART_WORKSPACE}/.counterpart/"
   fi
+
+  rm -f "$WORKSPACE_FILE"
+  echo "  [✓] Removed ${WORKSPACE_FILE}"
 
   for rc_file in "${HOME}/.zshrc" "${HOME}/.bashrc"; do
     if [[ -f "$rc_file" ]] && grep -qF "COUNTERPART_WORKSPACE" "$rc_file"; then
@@ -337,6 +346,7 @@ run_uninstall() {
   echo "  This will delete:"
   echo "    • ${HOME}/.local/bin/yourcounterpart  (symlink)"
   echo "    • ${TOOLBOX_INSTALL_DIR}/  (toolbox repo)"
+  echo "    • ${WORKSPACE_FILE}"
   echo "    • COUNTERPART_WORKSPACE from shell rc files"
   if [[ -n "${COUNTERPART_WORKSPACE:-}" ]]; then
     echo ""
@@ -366,6 +376,10 @@ run_uninstall() {
     rm -rf "$TOOLBOX_INSTALL_DIR"
     echo "  [✓] Removed ${TOOLBOX_INSTALL_DIR}/"
   fi
+
+  rm -f "$WORKSPACE_FILE"
+  rmdir "$(dirname "$WORKSPACE_FILE")" 2>/dev/null || true
+  echo "  [✓] Removed ${WORKSPACE_FILE}"
 
   if [[ "${remove_workspace:-N}" =~ ^[Yy]$ && -n "${COUNTERPART_WORKSPACE:-}" ]]; then
     rm -rf "${COUNTERPART_WORKSPACE}/.counterpart"
