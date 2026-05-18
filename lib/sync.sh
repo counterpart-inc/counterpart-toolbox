@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
 MANAGED_START="<!-- counterpart:managed:start -->"
 MANAGED_END="<!-- counterpart:managed:end -->"
@@ -117,6 +116,8 @@ sync_global() {
   _sync_to_managed "$agents_dir" "${HOME}/.claude/CLAUDE.md"
   _sync_to_managed "$agents_dir" "${HOME}/.config/opencode/AGENTS.md"
   _sync_to_managed "$agents_dir" "${HOME}/.copilot/copilot-instructions.md"
+  _sync_to_managed "$agents_dir" "${HOME}/.pi/AGENTS.md"
+  _sync_to_managed "$agents_dir" "${HOME}/.gemini/GEMINI.md"
   _sync_cursor "$agents_dir" "${HOME}/.cursor/rules"
   _sync_skills "$agents_dir" "${HOME}/.claude/skills"
   _sync_skills "$agents_dir" "${HOME}/.config/opencode/skills"
@@ -128,6 +129,48 @@ sync_local() {
   local agents_dir="${2:-${repo_dir}/.agents}"
   [[ ! -d "$agents_dir" ]] && return 0
   _sync_to_managed "$agents_dir" "${repo_dir}/AGENTS.md"
+  _sync_to_managed "$agents_dir" "${repo_dir}/GEMINI.md"
   _sync_cursor "$agents_dir" "${repo_dir}/.cursor/rules"
   echo "  [✓] Local sync complete"
+}
+
+write_agents_lock() {
+  local agents_dir="${1:-${HOME}/.agents}"
+  local toolbox_dir="${2:-}"
+  local lock_file="${HOME}/.agents/agents.lock.json"
+
+  command -v jq &>/dev/null || return 0
+
+  local commit="unknown"
+  if [[ -n "$toolbox_dir" && -d "${toolbox_dir}/plugins" ]]; then
+    commit=$(git -C "${toolbox_dir}/plugins" rev-parse HEAD 2>/dev/null || echo "unknown")
+  fi
+
+  local synced_at
+  synced_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  local agents_list rules_list skills_list
+  agents_list=$(find "${agents_dir}/agents" -name "*.md" 2>/dev/null | while IFS= read -r f; do basename "$f" .md; done | jq -Rsc 'split("\n") | map(select(length>0))')
+  rules_list=$(find "${agents_dir}/rules" -name "*.md" 2>/dev/null | while IFS= read -r f; do basename "$f" .md; done | jq -Rsc 'split("\n") | map(select(length>0))')
+  skills_list=$(find "${agents_dir}/skills" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | while IFS= read -r d; do basename "$d"; done | jq -Rsc 'split("\n") | map(select(length>0))')
+
+  mkdir -p "${HOME}/.agents"
+  jq -n \
+    --arg commit "$commit" \
+    --arg synced_at "$synced_at" \
+    --argjson agents "${agents_list:-[]}" \
+    --argjson rules "${rules_list:-[]}" \
+    --argjson skills "${skills_list:-[]}" \
+    '{
+      version: 1,
+      sources: {
+        "counterpart-inc/counterpart-plugins": {
+          commit: $commit,
+          syncedAt: $synced_at,
+          agents: $agents,
+          rules: $rules,
+          skills: $skills
+        }
+      }
+    }' > "$lock_file"
 }

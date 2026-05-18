@@ -166,10 +166,8 @@ EOF
     echo "  [✓] Created ${cp_dir}/state.json"
   fi
 
-  # 7. Save global config
+  # 7. Ensure global config dir exists (providers written after detection below)
   mkdir -p "$GLOBAL_CONFIG_DIR"
-  printf '{"workspace": "%s"}\n' "$workspace" > "$GLOBAL_CONFIG"
-  echo "  [✓] Saved global config: $GLOBAL_CONFIG"
 
   # 8. Export for health check
   export COUNTERPART_WORKSPACE="$workspace"
@@ -188,7 +186,21 @@ EOF
   [[ -d "${HOME}/.cursor" ]] && detected_providers+=("cursor") && echo "  [✓] Cursor detected"
   command -v opencode &>/dev/null && detected_providers+=("opencode") && echo "  [✓] OpenCode detected"
   [[ -d "${HOME}/.config/github-copilot" ]] && detected_providers+=("copilot") && echo "  [✓] Copilot detected"
+  [[ -d "${HOME}/.gemini" ]] && detected_providers+=("gemini") && echo "  [✓] Gemini detected"
+  [[ -d "${HOME}/.pi" ]] && detected_providers+=("pi") && echo "  [✓] Pi detected"
   echo ""
+
+  local providers_json
+  providers_json=$(printf '%s\n' "${detected_providers[@]}" | jq -Rsc 'split("\n") | map(select(length>0))' 2>/dev/null || echo "[]")
+  local last_setup
+  last_setup=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  jq -n \
+    --arg workspace "$workspace" \
+    --argjson providers "$providers_json" \
+    --arg last_setup "$last_setup" \
+    '{"workspace": $workspace, "providers": $providers, "last_setup": $last_setup}' \
+    > "$GLOBAL_CONFIG"
+  echo "  [✓] Saved global config: $GLOBAL_CONFIG"
 
   local plugins_dir="${TOOLBOX_DIR}/plugins"
   local global_agents_dir="${HOME}/.agents"
@@ -200,6 +212,7 @@ EOF
     rsync -a --delete "${plugins_dir}/.agents/" "${global_agents_dir}/" 2>/dev/null || \
       cp -r "${plugins_dir}/.agents/." "${global_agents_dir}/"
     sync_global "$global_agents_dir"
+    write_agents_lock "$global_agents_dir" "$TOOLBOX_DIR"
     echo ""
   fi
 
@@ -242,12 +255,19 @@ run_update() {
   local global_agents_dir="${HOME}/.agents"
   local plugins_dir="${TOOLBOX_DIR}/plugins"
 
+  local configured_providers=""
+  if [[ -f "$GLOBAL_CONFIG" ]] && command -v jq &>/dev/null; then
+    configured_providers=$(jq -r '(.providers // []) | join(", ")' "$GLOBAL_CONFIG" 2>/dev/null)
+  fi
+  [[ -n "$configured_providers" ]] && echo "  Providers: ${configured_providers}" && echo ""
+
   if [[ -d "$plugins_dir/.agents" ]]; then
     echo "  Syncing company context to agents..."
     mkdir -p "$global_agents_dir"
     rsync -a --delete "${plugins_dir}/.agents/" "${global_agents_dir}/" 2>/dev/null || \
       cp -r "${plugins_dir}/.agents/." "${global_agents_dir}/"
     sync_global "$global_agents_dir"
+    write_agents_lock "$global_agents_dir" "$TOOLBOX_DIR"
     if [[ -d "$PWD/.agents" ]]; then
       sync_local "$PWD" "$PWD/.agents"
     fi
@@ -407,6 +427,40 @@ run_status() {
     last_check=$(jq -r '.last_check // "never"' "$state_file" 2>/dev/null)
     echo "  Version:    v${TOOLBOX_VERSION}"
     echo "  Last check: $last_check"
+    echo ""
+  fi
+
+  if command -v jq &>/dev/null; then
+    local providers="(none)"
+    if [[ -f "$GLOBAL_CONFIG" ]]; then
+      local p
+      p=$(jq -r '(.providers // []) | join(", ")' "$GLOBAL_CONFIG" 2>/dev/null)
+      [[ -n "$p" ]] && providers="$p"
+    fi
+    echo "  Providers:  $providers"
+
+    local lock_file="${HOME}/.agents/agents.lock.json"
+    if [[ -f "$lock_file" ]]; then
+      local synced_at commit rule_count skill_count
+      synced_at=$(jq -r '.sources | to_entries[0].value.syncedAt // "unknown"' "$lock_file" 2>/dev/null)
+      commit=$(jq -r '.sources | to_entries[0].value.commit // "unknown"' "$lock_file" 2>/dev/null | cut -c1-7)
+      rule_count=$(jq -r '.sources | to_entries[0].value.rules | length' "$lock_file" 2>/dev/null || echo "0")
+      skill_count=$(jq -r '.sources | to_entries[0].value.skills | length' "$lock_file" 2>/dev/null || echo "0")
+      echo "  Last sync:  ${synced_at} (plugins @ ${commit})"
+      echo "  Rules:      ${rule_count} installed"
+      echo "  Skills:     ${skill_count} installed"
+    else
+      echo "  Last sync:  never — run: yourcounterpart setup"
+    fi
+    echo ""
+  fi
+
+  if [[ -f "${PWD}/context.lock" ]]; then
+    if context_lock_validate "context" "context.lock" "$PWD" &>/dev/null; then
+      echo "  Context lock: ✓ current"
+    else
+      echo "  Context lock: ✗ stale — run: yourcounterpart context sync"
+    fi
     echo ""
   fi
 }
