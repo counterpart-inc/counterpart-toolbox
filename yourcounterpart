@@ -106,7 +106,7 @@ _inject_workspace_env() {
 
 # ── Boilerplate copy ────────────────────────────────────────────────────────────
 
-_copy_boilerplate() {
+_install_defaults() {
   local cp_dir="$1"
   local bp_dir="${TOOLBOX_DIR}"
   if [[ ! -d "$bp_dir" ]]; then return 0; fi
@@ -132,7 +132,13 @@ _copy_boilerplate() {
 
 _do_sync() {
   local cp_dir="$1"
-  sync_global "$cp_dir"
+  local providers=()
+  if [[ -f "$COUNTERPART_CONFIG" ]] && command -v jq &>/dev/null; then
+    while IFS= read -r p; do
+      [[ -n "$p" ]] && providers+=("$p")
+    done < <(jq -r '.providers[]?' "$COUNTERPART_CONFIG" 2>/dev/null)
+  fi
+  sync_global "$cp_dir" "${providers[@]}"
   write_agents_lock "$cp_dir" "$TOOLBOX_DIR" "${COUNTERPART_WORKSPACE}"
   if [[ -f "$COUNTERPART_CONFIG" ]] && command -v jq &>/dev/null; then
     local tmp; tmp=$(mktemp)
@@ -170,7 +176,7 @@ run_setup() {
   mkdir -p "${cp_dir}/agents" "${cp_dir}/skills" "${cp_dir}/rules"
 
   # 3. Copy boilerplate
-  _copy_boilerplate "$cp_dir"
+  _install_defaults "$cp_dir"
   echo "  [✓] Created ${cp_dir}/"
   echo ""
 

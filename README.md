@@ -2,7 +2,7 @@
 
 > **yourcounterpart** — Counterpart's agent-agnostic AI context installer.
 
-Distributes company-standard AI context — rules, skills, and agents — to every Counterpart developer's AI coding tool. Works with Claude Code, Cursor, Copilot, OpenCode, Gemini, Pi, and more. You keep using your agent. It already has the right context.
+Distributes company-standard AI context — rules, skills, and agents — to every Counterpart developer's AI coding tool. Works with Claude Code, OpenCode, and Pi. You keep using your agent. It already has the right context.
 
 ---
 
@@ -15,7 +15,7 @@ Distributes company-standard AI context — rules, skills, and agents — to eve
 | 1 | Asks for your Counterpart workspace folder | Prompts once, remembers forever |
 | 2 | Creates `{workspace}/.counterpart/` with agents, rules, skills | Copied from toolbox defaults |
 | 3 | Sets `COUNTERPART_WORKSPACE` in your shell rc | Available in every session |
-| 4 | Detects which AI agents you have installed | Checks for `claude`, `cursor`, `opencode`, etc. |
+| 4 | Detects which AI agents you have installed | Checks for `claude`, `opencode`, `pi` |
 | 5 | Persists detected providers to `config.json` | Used by sync and update |
 | 6 | Checks required CLI tools and MCP servers | `jq`, `ripgrep`, `ast-grep`, Linear, Sentry, Context7 |
 | 7 | Syncs rules, skills, and agents to every provider | Native formats per agent |
@@ -58,7 +58,7 @@ bash install.sh
 
 - `git`, `curl`
 - SSH key added to your GitHub account
-- At least one AI coding agent installed (Claude Code, Cursor, Copilot, OpenCode, etc.)
+- At least one supported AI coding agent installed (Claude Code, OpenCode, or Pi)
 
 ---
 
@@ -83,11 +83,18 @@ yourcounterpart uninstall        # remove yourcounterpart from this machine
 counterpart-toolbox/
 ├── yourcounterpart            ← main CLI
 ├── install.sh                 ← curl-installable bootstrap
+├── VERSION                    ← current toolbox version
+├── context.lock               ← SHA256 hash of context/ (auto-generated)
 ├── agents/                    ← default agent definitions (copied to .counterpart on setup)
 ├── rules/                     ← default rules (copied to .counterpart on setup)
 ├── skills/                    ← default skills (copied to .counterpart on setup)
 ├── lib/
-│   ├── sync.sh                ← sync engine: .counterpart/ → agent native formats
+│   ├── sync.sh                ← sync orchestrator: reads providers, delegates to lib/sync/
+│   ├── sync/
+│   │   ├── _common.sh         ← shared helpers (managed blocks, copy primitives)
+│   │   ├── claude.sh          ← sync provider: Claude Code
+│   │   ├── opencode.sh        ← sync provider: OpenCode
+│   │   └── pi.sh              ← sync provider: Pi
 │   ├── context-lock.sh        ← context.lock generate + validate
 │   ├── check_tools.sh         ← required CLI tools check
 │   └── check_mcp.sh           ← MCP server health check

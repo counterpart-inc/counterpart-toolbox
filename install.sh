@@ -57,7 +57,7 @@ ln -s "${INSTALL_DIR}/yourcounterpart" "$SYMLINK"
 chmod +x "${INSTALL_DIR}/yourcounterpart"
 success "Symlinked: ${SYMLINK} → ${INSTALL_DIR}/yourcounterpart"
 
-# ── 4. Add ~/.local/bin to PATH ─────────────────────────────────────────────────
+# ── 3. Add ~/.local/bin to PATH ─────────────────────────────────────────────────
 add_to_path() {
   local rc_file="$1"
   if [[ -f "$rc_file" ]] && grep -qF 'local/bin' "$rc_file"; then
@@ -92,7 +92,7 @@ fi
 # Make PATH available in current session
 export PATH="${BIN_DIR}:${PATH}"
 
-# ── 5. Register shell completions ───────────────────────────────────────────────
+# ── 4. Register shell completions ───────────────────────────────────────────────
 add_completion() {
   local rc_file="$1"
   local completion_line="$2"
@@ -126,7 +126,7 @@ else
 fi
 success "Shell completions active."
 
-# ── 6. Run first-time setup ─────────────────────────────────────────────────────
+# ── 5. Run first-time setup ─────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}Installation complete.${RESET}"
 echo ""
