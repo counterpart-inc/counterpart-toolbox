@@ -94,6 +94,17 @@ _sync_cursor() {
   done < <(find "$rules_dir" -name "*.md" | LC_ALL=C sort)
 }
 
+_sync_agents() {
+  local agents_dir="$1" target_dir="$2"
+  local src="${agents_dir}/agents"
+  [[ ! -d "$src" ]] && return 0
+  mkdir -p "$target_dir"
+  while IFS= read -r f; do
+    [[ -f "$f" ]] || continue
+    cp "$f" "${target_dir}/$(basename "$f")"
+  done < <(find "$src" -maxdepth 1 -name "*.md" | LC_ALL=C sort)
+}
+
 _sync_skills() {
   local agents_dir="$1" target_dir="$2"
   local skills_dir="${agents_dir}/skills"
@@ -119,6 +130,8 @@ sync_global() {
   _sync_to_managed "$agents_dir" "${HOME}/.pi/AGENTS.md"
   _sync_to_managed "$agents_dir" "${HOME}/.gemini/GEMINI.md"
   _sync_cursor "$agents_dir" "${HOME}/.cursor/rules"
+  _sync_agents "$agents_dir" "${HOME}/.claude/agents"
+  _sync_agents "$agents_dir" "${HOME}/.config/opencode/agents"
   _sync_skills "$agents_dir" "${HOME}/.claude/skills"
   _sync_skills "$agents_dir" "${HOME}/.config/opencode/skills"
   echo "  [✓] Global sync complete"
