@@ -18,7 +18,7 @@ This document defines the canonical `.agents/` directory layout used by the coun
 │       ├── references/   # Supporting docs (optional)
 │       └── assets/       # Supporting files (optional)
 ├── mcp.json              # MCP server definitions
-├── agents.lock.json      # Tracks imported sources (like package-lock)
+├── toolbox.lock          # Tracks imported sources (like package-lock)
 └── .sync-manifest.json   # Tracks generated files (managed by sync engine)
 ```
 
@@ -141,7 +141,7 @@ What the skill produces when complete.
 - `providers.[name]` overrides specific keys for that provider
 - `providers.[name]: false` disables the server for that provider
 
-### Lock File (`agents.lock.json`)
+### Lock File (`toolbox.lock`)
 
 ```json
 {

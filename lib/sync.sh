@@ -137,7 +137,7 @@ sync_local() {
 write_agents_lock() {
   local agents_dir="${1:-${HOME}/.agents}"
   local toolbox_dir="${2:-}"
-  local lock_file="${HOME}/.agents/agents.lock.json"
+  local lock_file="${HOME}/.agents/toolbox.lock"
 
   command -v jq &>/dev/null || return 0
 

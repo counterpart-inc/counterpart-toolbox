@@ -439,7 +439,7 @@ run_status() {
     fi
     echo "  Providers:  $providers"
 
-    local lock_file="${HOME}/.agents/agents.lock.json"
+    local lock_file="${HOME}/.agents/toolbox.lock"
     if [[ -f "$lock_file" ]]; then
       local synced_at commit rule_count skill_count
       synced_at=$(jq -r '.sources | to_entries[0].value.syncedAt // "unknown"' "$lock_file" 2>/dev/null)

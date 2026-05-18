@@ -26,7 +26,7 @@ bash install.sh
 2. Copies company rules and skills into each agent's config
 3. Configures company MCP servers (Linear, Sentry, Context7)
 4. Saves your detected agents to `~/.config/counterpart/config.json`
-5. Writes `~/.agents/agents.lock.json` recording what was installed and from which commit
+5. Writes `~/.agents/toolbox.lock` recording what was installed and from which commit
 
 After setup, open your AI agent directly. No wrapper, no interception.
 
