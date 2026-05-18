@@ -72,6 +72,10 @@ load_workspace() {
   if [[ -z "$ws" && -f "$WORKSPACE_FILE" ]]; then
     ws=$(cat "$WORKSPACE_FILE" 2>/dev/null | tr -d '[:space:]')
   fi
+  ws="${ws%/}"
+  if [[ "${ws##*/}" == ".counterpart" ]]; then
+    ws="$(dirname "$ws")"
+  fi
   if [[ -z "$ws" || ! -d "$ws" || ! -d "${ws}/.counterpart" ]]; then
     return 1
   fi
@@ -149,6 +153,10 @@ run_setup() {
   read -r workspace </dev/tty
   workspace="${workspace:-$default_workspace}"
   workspace="${workspace/#\~/$HOME}"
+  workspace="${workspace%/}"
+  if [[ "${workspace##*/}" == ".counterpart" ]]; then
+    workspace="$(dirname "$workspace")"
+  fi
 
   if [[ ! -d "$workspace" ]]; then
     printf "  '%s' does not exist. Create it? [Y/n] " "$workspace"
