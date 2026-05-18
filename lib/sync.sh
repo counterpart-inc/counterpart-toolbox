@@ -3,9 +3,6 @@
 MANAGED_START="<!-- counterpart:managed:start -->"
 MANAGED_END="<!-- counterpart:managed:end -->"
 
-_slugify() {
-  echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-'
-}
 
 _parse_field() {
   local file="$1" field="$2"
@@ -74,25 +71,6 @@ _sync_to_managed() {
   rm "$tmp"
 }
 
-_sync_cursor() {
-  local agents_dir="$1" cursor_dir="$2"
-  local rules_dir="${agents_dir}/rules"
-  if [[ ! -d "$rules_dir" ]]; then return 0; fi
-  mkdir -p "$cursor_dir"
-  while IFS= read -r f; do
-    if [[ ! -f "$f" ]]; then continue; fi
-    local name desc always body slug
-    name=$(_parse_field "$f" "name")
-    desc=$(_parse_field "$f" "description")
-    always=$(_parse_field "$f" "alwaysApply")
-    body=$(_extract_body "$f")
-    if [[ -z "$name" ]]; then name=$(basename "$f" .md); fi
-    if [[ -z "$always" ]]; then always="true"; fi
-    slug=$(_slugify "$name")
-    printf -- '---\ndescription: %s\nalwaysApply: %s\n---\n\n%s\n' \
-      "${desc:-$name}" "$always" "$body" > "${cursor_dir}/${slug}.mdc"
-  done < <(find "$rules_dir" -name "*.md" | LC_ALL=C sort)
-}
 
 _sync_agents() {
   local agents_dir="$1" target_dir="$2"
@@ -128,10 +106,7 @@ sync_global() {
   if [[ ! -d "$agents_dir" ]]; then return 0; fi
   _sync_to_managed "$agents_dir" "${HOME}/.claude/CLAUDE.md"
   _sync_to_managed "$agents_dir" "${HOME}/.config/opencode/AGENTS.md"
-  _sync_to_managed "$agents_dir" "${HOME}/.copilot/copilot-instructions.md"
   _sync_to_managed "$agents_dir" "${HOME}/.pi/AGENTS.md"
-  _sync_to_managed "$agents_dir" "${HOME}/.gemini/GEMINI.md"
-  _sync_cursor "$agents_dir" "${HOME}/.cursor/rules"
   _sync_agents "$agents_dir" "${HOME}/.claude/agents"
   _sync_agents "$agents_dir" "${HOME}/.config/opencode/agents"
   _sync_skills "$agents_dir" "${HOME}/.claude/skills"
@@ -144,8 +119,6 @@ sync_local() {
   local agents_dir="${2:-${repo_dir}/.agents}"
   if [[ ! -d "$agents_dir" ]]; then return 0; fi
   _sync_to_managed "$agents_dir" "${repo_dir}/AGENTS.md"
-  _sync_to_managed "$agents_dir" "${repo_dir}/GEMINI.md"
-  _sync_cursor "$agents_dir" "${repo_dir}/.cursor/rules"
   echo "  [✓] Local sync complete"
 }
 

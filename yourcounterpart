@@ -184,10 +184,7 @@ run_setup() {
   echo ""
   local detected_providers=()
   if command -v claude &>/dev/null;   then detected_providers+=("claude");   echo "  [✓] Claude Code"; fi
-  if [[ -d "${HOME}/.cursor" ]];      then detected_providers+=("cursor");   echo "  [✓] Cursor"; fi
   if command -v opencode &>/dev/null; then detected_providers+=("opencode"); echo "  [✓] OpenCode"; fi
-  if [[ -d "${HOME}/.config/github-copilot" ]]; then detected_providers+=("copilot"); echo "  [✓] Copilot"; fi
-  if [[ -d "${HOME}/.gemini" ]];      then detected_providers+=("gemini");   echo "  [✓] Gemini"; fi
   if [[ -d "${HOME}/.pi" ]];          then detected_providers+=("pi");       echo "  [✓] Pi"; fi
   echo ""
 

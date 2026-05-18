@@ -136,9 +136,6 @@ Setup creates a `.counterpart/` directory inside your Counterpart workspace:
 |-------|--------------------------|-------------------|
 | Claude Code | `~/.claude/CLAUDE.md`, `~/.claude/agents/` | `~/.claude/skills/` |
 | OpenCode | `~/.config/opencode/AGENTS.md`, `~/.config/opencode/agents/` | `~/.config/opencode/skills/` |
-| Cursor | `~/.cursor/rules/` | — |
-| Copilot | `~/.copilot/copilot-instructions.md` | — |
-| Gemini | `~/.gemini/GEMINI.md` | — |
 | Pi | `~/.pi/AGENTS.md` | — |
 
 Rules are injected as **managed blocks** between `<!-- counterpart:managed:start -->` and `<!-- counterpart:managed:end -->` markers. Content outside the markers is preserved.
