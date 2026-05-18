@@ -15,7 +15,7 @@ source "${TOOLBOX_DIR}/lib/sync/_common.sh"
 sync_claude() {
   local agents_dir="$1"
   _sync_rules "$agents_dir" "${HOME}/.claude/CLAUDE.md"
-  _sync_agents     "$agents_dir" "${HOME}/.claude/agents"
+  _sync_agents     "$agents_dir" "${HOME}/.claude/agents" "claude"
   _sync_skills     "$agents_dir" "${HOME}/.claude/skills"
   echo "  [✓] claude"
 }

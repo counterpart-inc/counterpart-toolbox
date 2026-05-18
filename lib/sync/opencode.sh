@@ -15,7 +15,7 @@ source "${TOOLBOX_DIR}/lib/sync/_common.sh"
 sync_opencode() {
   local agents_dir="$1"
   _sync_rules "$agents_dir" "${HOME}/.config/opencode/AGENTS.md"
-  _sync_agents     "$agents_dir" "${HOME}/.config/opencode/agents"
+  _sync_agents     "$agents_dir" "${HOME}/.config/opencode/agents" "opencode"
   _sync_skills     "$agents_dir" "${HOME}/.config/opencode/skills"
   echo "  [✓] opencode"
 }

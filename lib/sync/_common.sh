@@ -99,17 +99,36 @@ _sync_rules() {
   rm "$tmp"
 }
 
-# _sync_agents <agents_dir> <target_dir>
-# Copy all agents/*.md files to target_dir.
+# _sync_agents <agents_dir> <target_dir> <provider>
+# Syncs agents to target_dir. Handles two shapes:
+#   Flat file:  agents/name.md          → copied verbatim
+#   Directory:  agents/name/
+#                 {provider}.md         → provider-specific frontmatter
+#                 body.md               → shared prompt body (optional)
+#               composed into target_dir/name.md
 _sync_agents() {
-  local agents_dir="$1" target_dir="$2"
+  local agents_dir="$1" target_dir="$2" provider="$3"
   local src="${agents_dir}/agents"
   if [[ ! -d "$src" ]]; then return 0; fi
   mkdir -p "$target_dir"
+
   while IFS= read -r f; do
     if [[ ! -f "$f" ]]; then continue; fi
     cp "$f" "${target_dir}/$(basename "$f")"
   done < <(find "$src" -maxdepth 1 -name "*.md" | LC_ALL=C sort)
+
+  for agent_dir in "${src}"/*/; do
+    if [[ ! -d "$agent_dir" ]]; then continue; fi
+    local aname frontmatter body
+    aname=$(basename "$agent_dir")
+    frontmatter="${agent_dir}${provider}.md"
+    body="${agent_dir}body.md"
+    if [[ ! -f "$frontmatter" ]]; then continue; fi
+    {
+      cat "$frontmatter"
+      [[ -f "$body" ]] && cat "$body"
+    } > "${target_dir}/${aname}.md"
+  done
 }
 
 # _sync_skills <agents_dir> <target_dir>

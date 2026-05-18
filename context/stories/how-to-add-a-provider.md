@@ -24,9 +24,9 @@ source "${TOOLBOX_DIR}/lib/sync/_common.sh"
 
 sync_cursor() {
   local agents_dir="$1"
-  _sync_rules "$agents_dir" "${HOME}/.cursor/rules/counterpart.md"
-  _sync_agents     "$agents_dir" "${HOME}/.cursor/agents"
-  _sync_skills     "$agents_dir" "${HOME}/.cursor/skills"
+  _sync_rules  "$agents_dir" "${HOME}/.cursor/rules/counterpart.md"
+  _sync_agents "$agents_dir" "${HOME}/.cursor/agents" "cursor"
+  _sync_skills "$agents_dir" "${HOME}/.cursor/skills"
   echo "  [✓] cursor"
 }
 ```
@@ -37,6 +37,7 @@ sync_cursor() {
 - **Function name** must be `sync_{provider}` — this is how `sync_global` calls it
 - **Single argument**: `agents_dir` — the `.counterpart/` path with `agents/`, `rules/`, `skills/` subdirs
 - Use `_sync_rules`, `_sync_agents`, `_sync_skills` from `_common.sh` for the actual work
+- Pass your provider name as the third arg to `_sync_agents` (see agent directory format below)
 - Omit primitives the provider doesn't support (e.g., Pi has no agents or skills)
 - Print `[✓] {provider}` on success
 
@@ -45,8 +46,49 @@ sync_cursor() {
 | Function | What it does |
 |----------|-------------|
 | `_sync_rules <agents_dir> <target_file>` | Injects combined rules into the managed block of target_file |
-| `_sync_agents <agents_dir> <target_dir>` | Copies `agents/*.md` to target_dir |
+| `_sync_agents <agents_dir> <target_dir> <provider>` | Composes and copies agents to target_dir (see below) |
 | `_sync_skills <agents_dir> <target_dir>` | Copies `skills/*/SKILL.md` (+ `references/`) to target_dir |
+
+---
+
+## Agent directory format
+
+Agents support a directory structure that lets each provider have its own frontmatter while sharing the prompt body:
+
+```
+agents/
+└── my-agent/
+    ├── body.md        ← shared prompt body (written once, used by all providers)
+    ├── claude.md      ← Claude Code frontmatter
+    ├── opencode.md    ← OpenCode frontmatter
+    └── cursor.md      ← Cursor frontmatter  (add when supporting Cursor)
+```
+
+`_sync_agents` composes `{provider}.md` + `body.md` into a single file and writes it to the target directory. If the provider file doesn't exist for an agent, that agent is skipped for that provider.
+
+**`claude.md`** example:
+```yaml
+---
+name: my-agent
+description: What this agent does and when to invoke it.
+---
+```
+
+**`opencode.md`** example:
+```yaml
+---
+description: What this agent does and when to invoke it.
+mode: subagent
+---
+```
+
+**`body.md`** — plain markdown, no frontmatter:
+```markdown
+You are a specialist in X. Focus on Y.
+Always do Z.
+```
+
+When adding a new provider, add `{provider}.md` to every existing agent directory that should be available in that provider.
 
 ---
 
@@ -86,6 +128,8 @@ sync_global "$cp_dir" "${providers[@]}"
 
 - [ ] `lib/sync/{provider}.sh` created
 - [ ] Function named `sync_{provider}`
+- [ ] `_sync_agents` called with provider name as third arg
+- [ ] `{provider}.md` frontmatter added to every agent directory in `agents/`
 - [ ] Detection added to `run_setup()` in `yourcounterpart`
 - [ ] `README.md` sync targets table updated
 - [ ] `context.lock` regenerated: `yourcounterpart context sync`

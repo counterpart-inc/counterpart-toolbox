@@ -1,3 +1,8 @@
+---
+name: capture
+description: Document a new engineering convention in the right place in the knowledge hierarchy so future devs and agents follow it. Triggers when a systemic change affects multiple instances of the same pattern.
+---
+
 # Skill: Capture Convention
 
 **Trigger**: When a dev makes a systemic change that affects multiple instances of the same pattern.
