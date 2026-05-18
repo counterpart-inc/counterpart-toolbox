@@ -1,25 +1,24 @@
 # counterpart-toolbox
 
-> **yourcounterpart** — Counterpart's standard Claude setup system.
+> **yourcounterpart** — Counterpart's agent-agnostic AI context installer.
 
-A CLI wrapper for [Claude Code](https://claude.ai/code) that enforces a shared baseline across the Counterpart engineering team: consistent plugin setup, required CLI tools, MCP server configuration, and injected company guidelines — so every engineer's Claude session starts from the same foundation.
+An installer and syncer that distributes company-standard AI context — rules, skills, and MCP servers — to every Counterpart developer's AI coding tool. Works with Claude Code, Cursor, Copilot, OpenCode, and more. You keep using your agent. It already has the right context.
 
 ---
 
 ## What It Does
 
-Before every Claude session `yourcounterpart` runs six health checks:
+`yourcounterpart setup` runs once and configures your AI agents:
 
-| # | Check | Auto-fix |
-|---|-------|----------|
-| 1 | `claude` CLI is installed | Shows install URL |
-| 2 | Required CLI tools present (`jq`, `ripgrep`, `ast-grep`) | Prompts to install via brew |
-| 3 | Counterpart plugin marketplaces are registered | Prompts to register |
-| 4 | Required plugins are installed (`cmpd`, `hire`, `plugin-dev`, `pyright-lsp`) | Prompts to install |
-| 5 | MCP servers are reachable | Warns, lets you continue; hints to run `/mcp` for auth |
-| 6 | `CLAUDE.md` in CWD has Counterpart guidelines | Injects into Claude context for the session |
+| # | What happens | How |
+|---|-------------|-----|
+| 1 | Detects which AI agents you have installed | Checks for `claude`, `cursor`, `code`, `opencode` |
+| 2 | Installs company rules into each agent | Managed blocks in CLAUDE.md, .cursor/rules/, AGENTS.md, etc. |
+| 3 | Installs company skills into each agent | capture, doc-check, pr-create, and more |
+| 4 | Configures MCP servers | Linear, Sentry, Context7 |
+| 5 | Checks required CLI tools | `jq`, `ripgrep`, `ast-grep` |
 
-If everything is green, it hands off to `claude` transparently.
+After setup, **open your agent directly** — no wrapper, no interception. Company context is already there.
 
 ---
 
@@ -57,27 +56,26 @@ Both paths produce the same result.
 4. Adds `~/.local/bin` to `PATH` in your shell rc file
 5. Registers tab completions for bash/zsh
 6. Checks required CLI tools (`jq`, `ripgrep`, `ast-grep`) and offers to install missing ones
-7. Runs `yourcounterpart setup` (first-time wizard)
+7. Runs `yourcounterpart setup` (detects your agents and syncs company context)
 
 ### Prerequisites
 
-- `git`
-- `curl`
-- [`claude` CLI](https://claude.ai/code)
+- `git`, `curl`
 - SSH key added to your GitHub account
+- At least one AI coding agent installed (Claude Code, Cursor, Copilot, OpenCode, etc.)
 
 ---
 
 ## Usage
 
 ```bash
-yourcounterpart               # health check → launch claude interactive
-yourcounterpart "write tests" # health check → pass args to claude
-yourcounterpart setup         # re-run setup wizard
-yourcounterpart status        # show health check results without launching claude
-yourcounterpart update        # self-update toolbox + pull latest plugins + re-install plugins
-yourcounterpart reset         # clear configuration and start fresh
-yourcounterpart uninstall     # remove yourcounterpart, plugins, and marketplaces from this machine
+yourcounterpart setup            # one-time: detect agents, install company context
+yourcounterpart update           # pull latest plugins and re-sync to all agents
+yourcounterpart status           # health check (tools, MCP servers)
+yourcounterpart context sync     # generate/update context.lock for current repo
+yourcounterpart context validate # check if context.lock is current
+yourcounterpart reset            # clear configuration and start fresh
+yourcounterpart uninstall        # remove yourcounterpart from this machine
 ```
 
 ---
@@ -86,108 +84,82 @@ yourcounterpart uninstall     # remove yourcounterpart, plugins, and marketplace
 
 ```
 counterpart-toolbox/
-├── .gitmodules                ← points plugins/ → counterpart-plugins
-├── plugins/                   ← git submodule: counterpart-plugins
-├── install.sh                 ← curl-installable (or clone-and-run) bootstrap
-├── yourcounterpart                 ← main wrapper script (bash)
+├── yourcounterpart            ← main CLI (setup, update, context, status)
+├── install.sh                 ← curl-installable bootstrap
 ├── lib/
-│   ├── check_claude.sh        ← verify claude CLI is installed
-│   ├── check_tools.sh         ← required CLI tools check (reads from config)
-│   ├── check_plugins.sh       ← marketplace registration + plugin installs
-│   ├── check_mcp.sh           ← ping MCP server endpoints
-│   └── check_guidelines.sh    ← validate/inject CLAUDE.md content
+│   ├── sync.sh                ← sync engine: .agents/ → agent native formats
+│   ├── context-lock.sh        ← context.lock generate + validate
+│   ├── check_tools.sh         ← required CLI tools check
+│   ├── check_mcp.sh           ← MCP server health check
+│   └── check_guidelines.sh    ← guidelines injection check
+├── ci/
+│   └── check-context-lock.sh  ← CI enforcement script (repos adopt this)
+├── plugins/                   ← git submodule: counterpart-plugins
+│   ├── .agents/               ← company agents, rules, skills, MCP config
+│   └── hooks/                 ← pre-commit hooks repos can adopt
 ├── completions/
-│   ├── yourcounterpart.zsh         ← zsh tab completion
-│   └── yourcounterpart.bash        ← bash tab completion
-└── templates/
-    ├── config.json            ← default workspace config (plugins, tools, MCPs)
-    └── guidelines.md          ← canonical company CLAUDE.md / system prompt template
+│   ├── yourcounterpart.zsh
+│   └── yourcounterpart.bash
+├── templates/
+│   ├── context/               ← knowledge hierarchy layer templates
+│   ├── agents-structure.md    ← .agents/ directory spec
+│   └── plugin-manifest.json   ← plugin schema
+└── context/                   ← this repo's own knowledge layer
+    ├── index.md               ← entry point for AI agents
+    └── project-summaries/
 ```
 
 ---
 
-## Choosing Your Workspace Path
+## How It Works
 
-During setup you will be asked:
+### The `.agents/` hierarchy
 
-```
-Where is your Counterpart workspace folder? [/your/current/path]
-```
-
-This should be the **parent directory where all your Counterpart repos are cloned** — not a specific repo. For example, if your repos live like this:
+Company context is organized in a two-level hierarchy:
 
 ```
-~/projects/work/counterpart/
-├── uas/
-├── uas_frontend/
-├── insurance-platform-cms/
-├── counterpart-toolbox/
-└── counterpart-plugins/
+~/.agents/                     ← global (installed by yourcounterpart setup)
+  rules/                       ← company-wide rules (always applied)
+  skills/                      ← company skills (on-demand)
+  agents/                      ← default agent definition
+  mcp.json                     ← company MCP servers
+
+{repo}/.agents/                ← local (repo-specific extensions)
+  rules/                       ← rules that only apply in this repo
+  skills/                      ← repo-specific skills
 ```
 
-Then your workspace is `~/projects/work/counterpart/`. That is where `yourcounterpart` creates its `.counterpart/` config folder and where it looks for `CLAUDE.md` guidelines.
+On `yourcounterpart setup`, the global layer is populated from `counterpart-plugins` and synced to every detected agent. On `yourcounterpart update`, the same sync runs again with the latest plugins.
 
----
+### Sync targets
 
-## Workspace Structure (created at setup)
+The sync engine writes to each agent's native config format:
 
-```
-{WORKSPACE}/                       ← parent folder of all Counterpart repos
-├── uas/
-├── uas_frontend/
-├── ...
-└── .counterpart/                  ← created by yourcounterpart setup
-    ├── config.json                ← required plugins, tools, MCP URLs, guidelines header
-    ├── guidelines.md              ← company guidelines (local copy, editable)
-    └── state.json                 ← last check timestamp
-```
+| Agent | Global output | Per-repo output |
+|-------|--------------|----------------|
+| Claude Code | `~/.claude/CLAUDE.md` | `AGENTS.md` |
+| Cursor | `~/.cursor/rules/` | `.cursor/rules/` |
+| OpenCode | `~/.config/opencode/AGENTS.md` | `AGENTS.md` |
+| Copilot | `~/.copilot/copilot-instructions.md` | `.github/copilot-instructions.md` |
 
-**Global pointer** (set during setup):
-```
-~/.config/counterpart/config.json  →  { "workspace": "/path/to/your/workspace" }
-```
+Rules are injected as **managed blocks** — content between `<!-- counterpart:managed:start -->` / `<!-- counterpart:managed:end -->` markers. Hand-written content outside the markers is preserved.
 
----
+### context.lock
 
-## Configuration
+Each repo can have a `context/` directory with project knowledge (index, summaries, stories). The `context.lock` file is a SHA256 hash of all files in `context/`, committed with the code. CI can check that it's current before merge.
 
-### `.counterpart/config.json`
-
-```json
-{
-  "version": "1.0.0",
-  "marketplaces": [
-    "git@github.com:counterpart-inc/counterpart-plugins.git",
-    "anthropics/claude-plugins-official"
-  ],
-  "required_plugins": ["cmpd", "hire", "plugin-dev", "pyright-lsp"],
-  "required_tools": [
-    {"cmd": "jq",       "brew": "jq"},
-    {"cmd": "rg",       "brew": "ripgrep"},
-    {"cmd": "ast-grep", "brew": "ast-grep"}
-  ],
-  "mcp_servers": {
-    "linear":   "https://mcp.linear.app/sse",
-    "sentry":   "https://mcp.sentry.dev/mcp",
-    "context7": "https://mcp.context7.com/mcp"
-  },
-  "guidelines_header": "# Counterpart Guidelines"
-}
+```bash
+yourcounterpart context sync      # generate/update context.lock
+yourcounterpart context validate  # check if it's current
 ```
 
-- **`marketplaces`** — plugin marketplaces to register with Claude Code
-- **`required_plugins`** — plugins that must be installed before every session
-- **`required_tools`** — CLI tools checked (and optionally brew-installed) on each run
-- **`mcp_servers`** — pinged with a short timeout; 401 means auth needed (`/mcp`), unreachable warns but doesn't block
-- **`guidelines_header`** — unique string used to detect whether company guidelines are already in `CLAUDE.md`
+See `ci/check-context-lock.sh` for the CI enforcement script.
 
-To add a tool, plugin, or MCP server: edit this file and open a PR. All engineers pull the change via `yourcounterpart update`.
+### Global config
 
-### `guidelines.md`
-
-Located at `{WORKSPACE}/.counterpart/guidelines.md`. This is the local, editable copy of the company Claude guidelines. It is either prepended to `CLAUDE.md` or injected into Claude's context via `--append-system-prompt` when no `CLAUDE.md` is present.
-
-To update the canonical template: edit `templates/guidelines.md` in this repo and open a PR.
+```
+~/.config/counterpart/config.json  →  { "workspace": "...", "providers": ["claude", "cursor"] }
+```
 
 ---
 
@@ -197,7 +169,7 @@ To update the canonical template: edit `templates/guidelines.md` in this repo an
 yourcounterpart update
 ```
 
-This pulls the latest toolbox, updates the `plugins/` submodule, and re-installs all required plugins.
+Pulls the latest toolbox and plugins submodule, then re-syncs company context to all detected agents. Also runs local sync if the current directory has a `.agents/` folder.
 
 ---
 
@@ -207,32 +179,38 @@ This pulls the latest toolbox, updates the `plugins/` submodule, and re-installs
 yourcounterpart uninstall
 ```
 
-Removes the symlink, toolbox repo, global config, shell completions, Claude plugins, and registered marketplaces.
+Removes the symlink, toolbox repo, global config, and shell completions.
 
 ---
 
 ## Contributing
 
-The `plugins/` directory is a submodule pointing to `counterpart-plugins`. Plugin changes live in that repo. Wrapper, install flow, health check, or template changes live here.
+**Skills, rules, agents, MCP config** → changes go in the `counterpart-plugins` submodule repo.
+
+**Sync engine, install flow, context-lock, CLI commands** → changes go here in `counterpart-toolbox`.
+
+**Templates** (`templates/context/`, `templates/agents-structure.md`) → also here.
+
+When adding a new lib script: source it in `yourcounterpart` and add a shellcheck comment.
 
 ---
 
 ## Troubleshooting
 
-**`curl: (56) The requested URL returned error: 404`**
-The install token is missing, wrong, or expired. Grab the current token from Notion under **Engineering Onboarding → counterpart-toolbox install token**. Alternatively, use the [clone fallback](#fallback--clone-and-run).
-
 **`yourcounterpart: command not found`**
 Reload your shell: `source ~/.zshrc` (or `~/.bashrc`), then try again.
 
-**`claude CLI not found`**
-Install Claude Code: https://claude.ai/code
+**`curl: (56) The requested URL returned error: 404`**
+The install token is missing or expired. Grab it from Notion under **Engineering Onboarding → counterpart-toolbox install token**. Or use the [clone fallback](#fallback--clone-and-run).
 
-**MCP servers showing 401**
-Authentication is needed. Launch `yourcounterpart` and run `/mcp` inside the Claude session to authenticate each server.
+**MCP servers showing unreachable**
+Warning only — you can work offline. Check your network or run `yourcounterpart status` for details.
 
-**MCP server unreachable**
-This is a warning, not a hard failure. You can continue in offline mode. Check your network and try again later.
+**Company rules not showing up in my agent**
+Run `yourcounterpart setup` to re-sync. If your agent isn't listed, check if it was detected (`~/.config/counterpart/config.json` → `providers`).
+
+**context.lock is stale**
+Run `yourcounterpart context sync` in the repo, then `git add context.lock`.
 
 **Re-run setup**
 ```bash

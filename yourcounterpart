@@ -190,7 +190,7 @@ EOF
   [[ -d "${HOME}/.config/github-copilot" ]] && detected_providers+=("copilot") && echo "  [✓] Copilot detected"
   echo ""
 
-  local plugins_dir="${HOME}/.local/share/counterpart-toolbox/plugins"
+  local plugins_dir="${TOOLBOX_DIR}/plugins"
   local global_agents_dir="${HOME}/.agents"
 
   if [[ -d "$plugins_dir/.agents" ]]; then
@@ -240,7 +240,7 @@ run_update() {
   fi
 
   local global_agents_dir="${HOME}/.agents"
-  local plugins_dir="${HOME}/.local/share/counterpart-toolbox/plugins"
+  local plugins_dir="${TOOLBOX_DIR}/plugins"
 
   if [[ -d "$plugins_dir/.agents" ]]; then
     echo "  Syncing company context to agents..."
