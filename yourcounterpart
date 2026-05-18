@@ -16,7 +16,7 @@ SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do
   DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
   SOURCE="$(readlink "$SOURCE")"
-  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+  if [[ "$SOURCE" != /* ]]; then SOURCE="$DIR/$SOURCE"; fi
 done
 export TOOLBOX_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
@@ -50,7 +50,7 @@ banner() {
 # ── Update check ─────────────────────────────────────────────────────────────────
 
 check_for_update() {
-  [[ ! -d "${TOOLBOX_INSTALL_DIR}/.git" ]] && return 0
+  if [[ ! -d "${TOOLBOX_INSTALL_DIR}/.git" ]]; then return 0; fi
   local remote_version
   remote_version=$(git -C "$TOOLBOX_INSTALL_DIR" show origin/main:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")
   if [[ -n "$remote_version" && "$remote_version" != "$TOOLBOX_VERSION" ]]; then
@@ -60,7 +60,7 @@ check_for_update() {
 }
 
 trigger_background_fetch() {
-  [[ ! -d "${TOOLBOX_INSTALL_DIR}/.git" ]] && return 0
+  if [[ ! -d "${TOOLBOX_INSTALL_DIR}/.git" ]]; then return 0; fi
   git -C "$TOOLBOX_INSTALL_DIR" fetch origin main --quiet 2>/dev/null &
 }
 
@@ -81,7 +81,7 @@ _inject_workspace_env() {
   local workspace="$1"
   local export_line="export COUNTERPART_WORKSPACE=\"${workspace}\""
   for rc_file in "${HOME}/.zshrc" "${HOME}/.bashrc"; do
-    [[ ! -f "$rc_file" ]] && continue
+    if [[ ! -f "$rc_file" ]]; then continue; fi
     if grep -qF "COUNTERPART_WORKSPACE" "$rc_file"; then
       local tmp; tmp=$(mktemp)
       grep -v "COUNTERPART_WORKSPACE" "$rc_file" > "$tmp"
@@ -100,7 +100,7 @@ _inject_workspace_env() {
 _copy_boilerplate() {
   local cp_dir="$1"
   local bp_dir="${TOOLBOX_DIR}"
-  [[ ! -d "$bp_dir" ]] && return 0
+  if [[ ! -d "$bp_dir" ]]; then return 0; fi
 
   for type in agents rules; do
     if [[ -d "${bp_dir}/${type}" ]] && [[ -z "$(ls -A "${cp_dir}/${type}" 2>/dev/null)" ]]; then
@@ -112,7 +112,9 @@ _copy_boilerplate() {
     for skill_dir in "${bp_dir}/skills"/*/; do
       [[ -d "$skill_dir" ]] || continue
       local sname; sname=$(basename "$skill_dir")
-      [[ ! -d "${cp_dir}/skills/${sname}" ]] && cp -r "$skill_dir" "${cp_dir}/skills/${sname}"
+      if [[ ! -d "${cp_dir}/skills/${sname}" ]]; then
+        cp -r "$skill_dir" "${cp_dir}/skills/${sname}"
+      fi
     done
   fi
 }
@@ -168,12 +170,12 @@ run_setup() {
   echo -e "${BOLD}Detecting AI agents...${RESET}"
   echo ""
   local detected_providers=()
-  command -v claude &>/dev/null    && detected_providers+=("claude")   && echo "  [✓] Claude Code"
-  [[ -d "${HOME}/.cursor" ]]       && detected_providers+=("cursor")   && echo "  [✓] Cursor"
-  command -v opencode &>/dev/null  && detected_providers+=("opencode") && echo "  [✓] OpenCode"
-  [[ -d "${HOME}/.config/github-copilot" ]] && detected_providers+=("copilot") && echo "  [✓] Copilot"
-  [[ -d "${HOME}/.gemini" ]]       && detected_providers+=("gemini")   && echo "  [✓] Gemini"
-  [[ -d "${HOME}/.pi" ]]           && detected_providers+=("pi")       && echo "  [✓] Pi"
+  if command -v claude &>/dev/null;   then detected_providers+=("claude");   echo "  [✓] Claude Code"; fi
+  if [[ -d "${HOME}/.cursor" ]];      then detected_providers+=("cursor");   echo "  [✓] Cursor"; fi
+  if command -v opencode &>/dev/null; then detected_providers+=("opencode"); echo "  [✓] OpenCode"; fi
+  if [[ -d "${HOME}/.config/github-copilot" ]]; then detected_providers+=("copilot"); echo "  [✓] Copilot"; fi
+  if [[ -d "${HOME}/.gemini" ]];      then detected_providers+=("gemini");   echo "  [✓] Gemini"; fi
+  if [[ -d "${HOME}/.pi" ]];          then detected_providers+=("pi");       echo "  [✓] Pi"; fi
   echo ""
 
   # 6. Write config.json

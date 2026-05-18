@@ -20,7 +20,7 @@ _extract_body() {
 _upsert_managed() {
   local target="$1" content_file="$2"
   mkdir -p "$(dirname "$target")"
-  [[ ! -f "$target" ]] && touch "$target"
+  if [[ ! -f "$target" ]]; then touch "$target"; fi
 
   local tmp
   tmp=$(mktemp)
@@ -53,13 +53,13 @@ _upsert_managed() {
 _rules_combined() {
   local agents_dir="$1"
   local rules_dir="${agents_dir}/rules"
-  [[ ! -d "$rules_dir" ]] && return 0
+  if [[ ! -d "$rules_dir" ]]; then return 0; fi
   while IFS= read -r f; do
-    [[ -f "$f" ]] || continue
+    if [[ ! -f "$f" ]]; then continue; fi
     local name body
     name=$(_parse_field "$f" "name")
     body=$(_extract_body "$f")
-    [[ -z "$name" ]] && name=$(basename "$f" .md)
+    if [[ -z "$name" ]]; then name=$(basename "$f" .md); fi
     printf '## %s\n%s\n\n' "$name" "$body"
   done < <(find "$rules_dir" -name "*.md" | LC_ALL=C sort)
 }
@@ -69,7 +69,7 @@ _sync_to_managed() {
   local tmp
   tmp=$(mktemp)
   _rules_combined "$agents_dir" > "$tmp"
-  [[ ! -s "$tmp" ]] && { rm "$tmp"; return 0; }
+  if [[ ! -s "$tmp" ]]; then rm "$tmp"; return 0; fi
   _upsert_managed "$target" "$tmp"
   rm "$tmp"
 }
@@ -77,17 +77,17 @@ _sync_to_managed() {
 _sync_cursor() {
   local agents_dir="$1" cursor_dir="$2"
   local rules_dir="${agents_dir}/rules"
-  [[ ! -d "$rules_dir" ]] && return 0
+  if [[ ! -d "$rules_dir" ]]; then return 0; fi
   mkdir -p "$cursor_dir"
   while IFS= read -r f; do
-    [[ -f "$f" ]] || continue
+    if [[ ! -f "$f" ]]; then continue; fi
     local name desc always body slug
     name=$(_parse_field "$f" "name")
     desc=$(_parse_field "$f" "description")
     always=$(_parse_field "$f" "alwaysApply")
     body=$(_extract_body "$f")
-    [[ -z "$name" ]] && name=$(basename "$f" .md)
-    [[ -z "$always" ]] && always="true"
+    if [[ -z "$name" ]]; then name=$(basename "$f" .md); fi
+    if [[ -z "$always" ]]; then always="true"; fi
     slug=$(_slugify "$name")
     printf -- '---\ndescription: %s\nalwaysApply: %s\n---\n\n%s\n' \
       "${desc:-$name}" "$always" "$body" > "${cursor_dir}/${slug}.mdc"
@@ -97,10 +97,10 @@ _sync_cursor() {
 _sync_agents() {
   local agents_dir="$1" target_dir="$2"
   local src="${agents_dir}/agents"
-  [[ ! -d "$src" ]] && return 0
+  if [[ ! -d "$src" ]]; then return 0; fi
   mkdir -p "$target_dir"
   while IFS= read -r f; do
-    [[ -f "$f" ]] || continue
+    if [[ ! -f "$f" ]]; then continue; fi
     cp "$f" "${target_dir}/$(basename "$f")"
   done < <(find "$src" -maxdepth 1 -name "*.md" | LC_ALL=C sort)
 }
@@ -108,22 +108,24 @@ _sync_agents() {
 _sync_skills() {
   local agents_dir="$1" target_dir="$2"
   local skills_dir="${agents_dir}/skills"
-  [[ ! -d "$skills_dir" ]] && return 0
+  if [[ ! -d "$skills_dir" ]]; then return 0; fi
   mkdir -p "$target_dir"
   for skill in "${skills_dir}"/*/; do
-    [[ -d "$skill" ]] || continue
+    if [[ ! -d "$skill" ]]; then continue; fi
     local sname
     sname=$(basename "$skill")
-    [[ ! -f "${skill}SKILL.md" ]] && continue
+    if [[ ! -f "${skill}SKILL.md" ]]; then continue; fi
     mkdir -p "${target_dir}/${sname}"
     cp "${skill}SKILL.md" "${target_dir}/${sname}/SKILL.md"
-    [[ -d "${skill}references" ]] && cp -r "${skill}references" "${target_dir}/${sname}/"
+    if [[ -d "${skill}references" ]]; then
+      cp -r "${skill}references" "${target_dir}/${sname}/"
+    fi
   done
 }
 
 sync_global() {
   local agents_dir="${1:-${HOME}/.agents}"
-  [[ ! -d "$agents_dir" ]] && return 0
+  if [[ ! -d "$agents_dir" ]]; then return 0; fi
   _sync_to_managed "$agents_dir" "${HOME}/.claude/CLAUDE.md"
   _sync_to_managed "$agents_dir" "${HOME}/.config/opencode/AGENTS.md"
   _sync_to_managed "$agents_dir" "${HOME}/.copilot/copilot-instructions.md"
@@ -140,7 +142,7 @@ sync_global() {
 sync_local() {
   local repo_dir="${1:-$PWD}"
   local agents_dir="${2:-${repo_dir}/.agents}"
-  [[ ! -d "$agents_dir" ]] && return 0
+  if [[ ! -d "$agents_dir" ]]; then return 0; fi
   _sync_to_managed "$agents_dir" "${repo_dir}/AGENTS.md"
   _sync_to_managed "$agents_dir" "${repo_dir}/GEMINI.md"
   _sync_cursor "$agents_dir" "${repo_dir}/.cursor/rules"
@@ -168,7 +170,7 @@ write_agents_lock() {
   rules_list=$(find "${agents_dir}/rules" -name "*.md" 2>/dev/null | while IFS= read -r f; do basename "$f" .md; done | jq -Rsc 'split("\n") | map(select(length>0))')
   skills_list=$(find "${agents_dir}/skills" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | while IFS= read -r d; do basename "$d"; done | jq -Rsc 'split("\n") | map(select(length>0))')
 
-  mkdir -p "${HOME}/.agents"
+  mkdir -p "$(dirname "$lock_file")"
   jq -n \
     --arg commit "$commit" \
     --arg synced_at "$synced_at" \
