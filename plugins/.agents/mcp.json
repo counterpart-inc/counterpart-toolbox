@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "mcpServers": {
+    "linear": {
+      "base": {
+        "url": "https://mcp.linear.app/sse"
+      }
+    },
+    "sentry": {
+      "base": {
+        "url": "https://mcp.sentry.dev/mcp"
+      }
+    },
+    "context7": {
+      "base": {
+        "url": "https://mcp.context7.com/mcp"
+      }
+    }
+  }
+}

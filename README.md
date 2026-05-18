@@ -1,6 +1,6 @@
 # counterpart-toolbox
 
-> **yourclaude** — Counterpart's standard Claude setup system.
+> **yourcounterpart** — Counterpart's standard Claude setup system.
 
 A CLI wrapper for [Claude Code](https://claude.ai/code) that enforces a shared baseline across the Counterpart engineering team: consistent plugin setup, required CLI tools, MCP server configuration, and injected company guidelines — so every engineer's Claude session starts from the same foundation.
 
@@ -8,7 +8,7 @@ A CLI wrapper for [Claude Code](https://claude.ai/code) that enforces a shared b
 
 ## What It Does
 
-Before every Claude session `yourclaude` runs six health checks:
+Before every Claude session `yourcounterpart` runs six health checks:
 
 | # | Check | Auto-fix |
 |---|-------|----------|
@@ -53,11 +53,11 @@ Both paths produce the same result.
 
 1. Clones the repo to `~/.local/share/counterpart-toolbox/` via SSH
 2. Initializes the `plugins/` submodule (`counterpart-plugins`)
-3. Symlinks `yourclaude` → `~/.local/bin/yourclaude`
+3. Symlinks `yourcounterpart` → `~/.local/bin/yourcounterpart`
 4. Adds `~/.local/bin` to `PATH` in your shell rc file
 5. Registers tab completions for bash/zsh
 6. Checks required CLI tools (`jq`, `ripgrep`, `ast-grep`) and offers to install missing ones
-7. Runs `yourclaude setup` (first-time wizard)
+7. Runs `yourcounterpart setup` (first-time wizard)
 
 ### Prerequisites
 
@@ -71,13 +71,13 @@ Both paths produce the same result.
 ## Usage
 
 ```bash
-yourclaude               # health check → launch claude interactive
-yourclaude "write tests" # health check → pass args to claude
-yourclaude setup         # re-run setup wizard
-yourclaude status        # show health check results without launching claude
-yourclaude update        # self-update toolbox + pull latest plugins + re-install plugins
-yourclaude reset         # clear configuration and start fresh
-yourclaude uninstall     # remove yourclaude, plugins, and marketplaces from this machine
+yourcounterpart               # health check → launch claude interactive
+yourcounterpart "write tests" # health check → pass args to claude
+yourcounterpart setup         # re-run setup wizard
+yourcounterpart status        # show health check results without launching claude
+yourcounterpart update        # self-update toolbox + pull latest plugins + re-install plugins
+yourcounterpart reset         # clear configuration and start fresh
+yourcounterpart uninstall     # remove yourcounterpart, plugins, and marketplaces from this machine
 ```
 
 ---
@@ -89,7 +89,7 @@ counterpart-toolbox/
 ├── .gitmodules                ← points plugins/ → counterpart-plugins
 ├── plugins/                   ← git submodule: counterpart-plugins
 ├── install.sh                 ← curl-installable (or clone-and-run) bootstrap
-├── yourclaude                 ← main wrapper script (bash)
+├── yourcounterpart                 ← main wrapper script (bash)
 ├── lib/
 │   ├── check_claude.sh        ← verify claude CLI is installed
 │   ├── check_tools.sh         ← required CLI tools check (reads from config)
@@ -97,8 +97,8 @@ counterpart-toolbox/
 │   ├── check_mcp.sh           ← ping MCP server endpoints
 │   └── check_guidelines.sh    ← validate/inject CLAUDE.md content
 ├── completions/
-│   ├── yourclaude.zsh         ← zsh tab completion
-│   └── yourclaude.bash        ← bash tab completion
+│   ├── yourcounterpart.zsh         ← zsh tab completion
+│   └── yourcounterpart.bash        ← bash tab completion
 └── templates/
     ├── config.json            ← default workspace config (plugins, tools, MCPs)
     └── guidelines.md          ← canonical company CLAUDE.md / system prompt template
@@ -125,7 +125,7 @@ This should be the **parent directory where all your Counterpart repos are clone
 └── counterpart-plugins/
 ```
 
-Then your workspace is `~/projects/work/counterpart/`. That is where `yourclaude` creates its `.counterpart/` config folder and where it looks for `CLAUDE.md` guidelines.
+Then your workspace is `~/projects/work/counterpart/`. That is where `yourcounterpart` creates its `.counterpart/` config folder and where it looks for `CLAUDE.md` guidelines.
 
 ---
 
@@ -136,7 +136,7 @@ Then your workspace is `~/projects/work/counterpart/`. That is where `yourclaude
 ├── uas/
 ├── uas_frontend/
 ├── ...
-└── .counterpart/                  ← created by yourclaude setup
+└── .counterpart/                  ← created by yourcounterpart setup
     ├── config.json                ← required plugins, tools, MCP URLs, guidelines header
     ├── guidelines.md              ← company guidelines (local copy, editable)
     └── state.json                 ← last check timestamp
@@ -181,7 +181,7 @@ Then your workspace is `~/projects/work/counterpart/`. That is where `yourclaude
 - **`mcp_servers`** — pinged with a short timeout; 401 means auth needed (`/mcp`), unreachable warns but doesn't block
 - **`guidelines_header`** — unique string used to detect whether company guidelines are already in `CLAUDE.md`
 
-To add a tool, plugin, or MCP server: edit this file and open a PR. All engineers pull the change via `yourclaude update`.
+To add a tool, plugin, or MCP server: edit this file and open a PR. All engineers pull the change via `yourcounterpart update`.
 
 ### `guidelines.md`
 
@@ -194,7 +194,7 @@ To update the canonical template: edit `templates/guidelines.md` in this repo an
 ## Updating
 
 ```bash
-yourclaude update
+yourcounterpart update
 ```
 
 This pulls the latest toolbox, updates the `plugins/` submodule, and re-installs all required plugins.
@@ -204,7 +204,7 @@ This pulls the latest toolbox, updates the `plugins/` submodule, and re-installs
 ## Uninstalling
 
 ```bash
-yourclaude uninstall
+yourcounterpart uninstall
 ```
 
 Removes the symlink, toolbox repo, global config, shell completions, Claude plugins, and registered marketplaces.
@@ -222,24 +222,24 @@ The `plugins/` directory is a submodule pointing to `counterpart-plugins`. Plugi
 **`curl: (56) The requested URL returned error: 404`**
 The install token is missing, wrong, or expired. Grab the current token from Notion under **Engineering Onboarding → counterpart-toolbox install token**. Alternatively, use the [clone fallback](#fallback--clone-and-run).
 
-**`yourclaude: command not found`**
+**`yourcounterpart: command not found`**
 Reload your shell: `source ~/.zshrc` (or `~/.bashrc`), then try again.
 
 **`claude CLI not found`**
 Install Claude Code: https://claude.ai/code
 
 **MCP servers showing 401**
-Authentication is needed. Launch `yourclaude` and run `/mcp` inside the Claude session to authenticate each server.
+Authentication is needed. Launch `yourcounterpart` and run `/mcp` inside the Claude session to authenticate each server.
 
 **MCP server unreachable**
 This is a warning, not a hard failure. You can continue in offline mode. Check your network and try again later.
 
 **Re-run setup**
 ```bash
-yourclaude setup
+yourcounterpart setup
 ```
 
 **Start completely fresh**
 ```bash
-yourclaude reset
+yourcounterpart reset
 ```

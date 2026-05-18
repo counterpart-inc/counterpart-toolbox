@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# yourclaude — Counterpart AI toolbox wrapper for claude CLI
+# yourcounterpart — Counterpart AI toolbox installer + syncer
 # Usage:
-#   yourclaude               → health check, then launch claude interactive
-#   yourclaude "write tests" → health check, then pass args to claude
-#   yourclaude setup         → re-run setup wizard
-#   yourclaude status        → show health check results without launching claude
-#   yourclaude update        → self-update toolbox + pull latest plugins submodule
+#   yourcounterpart          → health check, show environment status
+#   yourcounterpart setup    → detect agents, install company context (coming soon)
+#   yourcounterpart update   → pull latest plugins, re-sync (coming soon)
+#   yourcounterpart status   → show health check results
+#   yourcounterpart reset    → clear configuration and start fresh
+#   yourcounterpart uninstall → remove yourcounterpart from this machine
 
 set -euo pipefail
 
@@ -20,16 +21,16 @@ done
 export TOOLBOX_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
 # ── Load lib scripts ────────────────────────────────────────────────────────────
-# shellcheck source=lib/check_claude.sh
-source "${TOOLBOX_DIR}/lib/check_claude.sh"
 # shellcheck source=lib/check_tools.sh
 source "${TOOLBOX_DIR}/lib/check_tools.sh"
-# shellcheck source=lib/check_plugins.sh
-source "${TOOLBOX_DIR}/lib/check_plugins.sh"
 # shellcheck source=lib/check_mcp.sh
 source "${TOOLBOX_DIR}/lib/check_mcp.sh"
 # shellcheck source=lib/check_guidelines.sh
 source "${TOOLBOX_DIR}/lib/check_guidelines.sh"
+# shellcheck source=lib/context-lock.sh
+source "${TOOLBOX_DIR}/lib/context-lock.sh"
+# shellcheck source=lib/sync.sh
+source "${TOOLBOX_DIR}/lib/sync.sh"
 
 # ── Constants ───────────────────────────────────────────────────────────────────
 GLOBAL_CONFIG_DIR="${HOME}/.config/counterpart"
@@ -45,7 +46,7 @@ YELLOW="\033[33m"
 
 banner() {
   echo ""
-  echo -e "${BOLD}${CYAN}  yourclaude — Counterpart AI toolbox${RESET}  ${YELLOW}v${TOOLBOX_VERSION}${RESET}"
+  echo -e "${BOLD}${CYAN}  yourcounterpart — Counterpart AI toolbox${RESET}  ${YELLOW}v${TOOLBOX_VERSION}${RESET}"
   echo -e "  ${YELLOW}yourcounterpart.com${RESET}"
   echo ""
 }
@@ -59,7 +60,7 @@ check_for_update() {
   local remote_version
   remote_version=$(git -C "$TOOLBOX_INSTALL_DIR" show origin/main:VERSION 2>/dev/null | tr -d '[:space:]' || echo "")
   if [[ -n "$remote_version" && "$remote_version" != "$TOOLBOX_VERSION" ]]; then
-    echo -e "  ${YELLOW}↑${RESET} Update available: ${TOOLBOX_VERSION} → ${remote_version}  (run: ${BOLD}yourclaude update${RESET})"
+    echo -e "  ${YELLOW}↑${RESET} Update available: ${TOOLBOX_VERSION} → ${remote_version}  (run: ${BOLD}yourcounterpart update${RESET})"
     echo ""
   fi
 }
@@ -112,7 +113,7 @@ run_setup() {
       mkdir -p "$workspace"
       echo "  Created: $workspace"
     else
-      echo "  Setup aborted. Re-run with: yourclaude setup"
+      echo "  Setup aborted. Re-run with: yourcounterpart setup"
       exit 1
     fi
   fi
@@ -179,7 +180,30 @@ EOF
   echo ""
   run_health_checks
   echo ""
-  echo -e "${BOLD}Setup complete.${RESET} Run 'yourclaude' to launch Claude."
+
+  echo -e "${BOLD}Detecting AI agents...${RESET}"
+  echo ""
+  local detected_providers=()
+  command -v claude &>/dev/null && detected_providers+=("claude") && echo "  [✓] Claude Code detected"
+  [[ -d "${HOME}/.cursor" ]] && detected_providers+=("cursor") && echo "  [✓] Cursor detected"
+  command -v opencode &>/dev/null && detected_providers+=("opencode") && echo "  [✓] OpenCode detected"
+  [[ -d "${HOME}/.config/github-copilot" ]] && detected_providers+=("copilot") && echo "  [✓] Copilot detected"
+  echo ""
+
+  local plugins_dir="${HOME}/.local/share/counterpart-toolbox/plugins"
+  local global_agents_dir="${HOME}/.agents"
+
+  if [[ -d "$plugins_dir/.agents" ]]; then
+    echo -e "${BOLD}Syncing company context...${RESET}"
+    echo ""
+    mkdir -p "$global_agents_dir/rules" "$global_agents_dir/skills"
+    rsync -a --delete "${plugins_dir}/.agents/" "${global_agents_dir}/" 2>/dev/null || \
+      cp -r "${plugins_dir}/.agents/." "${global_agents_dir}/"
+    sync_global "$global_agents_dir"
+    echo ""
+  fi
+
+  echo -e "${BOLD}Setup complete.${RESET} Open your AI agent — company context is already configured."
   echo ""
 }
 
@@ -215,20 +239,19 @@ run_update() {
     echo ""
   fi
 
-  # Re-install/upgrade required plugins
-  if load_workspace && [[ -f "$COUNTERPART_CONFIG" ]]; then
-    local required_plugins=()
-    while IFS= read -r plugin; do
-      [[ -n "$plugin" ]] && required_plugins+=("$plugin")
-    done < <(jq -r '.required_plugins[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
-    if [[ ${#required_plugins[@]} -gt 0 ]]; then
-      echo "  Re-installing plugins..."
-      for plugin in "${required_plugins[@]}"; do
-        echo "    Installing '$plugin'..."
-        claude plugin install "$plugin" 2>&1 | sed 's/^/    /' || echo "    [!] Failed to install '$plugin'"
-      done
-      echo ""
+  local global_agents_dir="${HOME}/.agents"
+  local plugins_dir="${HOME}/.local/share/counterpart-toolbox/plugins"
+
+  if [[ -d "$plugins_dir/.agents" ]]; then
+    echo "  Syncing company context to agents..."
+    mkdir -p "$global_agents_dir"
+    rsync -a --delete "${plugins_dir}/.agents/" "${global_agents_dir}/" 2>/dev/null || \
+      cp -r "${plugins_dir}/.agents/." "${global_agents_dir}/"
+    sync_global "$global_agents_dir"
+    if [[ -d "$PWD/.agents" ]]; then
+      sync_local "$PWD" "$PWD/.agents"
     fi
+    echo ""
   fi
 
   echo -e "${BOLD}Update complete.${RESET}"
@@ -239,7 +262,7 @@ run_update() {
 
 run_reset() {
   banner
-  echo -e "${BOLD}Reset yourclaude configuration${RESET}"
+  echo -e "${BOLD}Reset yourcounterpart configuration${RESET}"
   echo ""
   echo "  This will delete:"
   echo "    • ${GLOBAL_CONFIG}  (global config)"
@@ -266,7 +289,7 @@ run_reset() {
   fi
 
   echo ""
-  echo -e "${BOLD}Reset complete.${RESET} Run 'yourclaude setup' to reconfigure."
+  echo -e "${BOLD}Reset complete.${RESET} Run 'yourcounterpart setup' to reconfigure."
   echo ""
 }
 
@@ -274,10 +297,10 @@ run_reset() {
 
 run_uninstall() {
   banner
-  echo -e "${BOLD}Uninstall yourclaude${RESET}"
+  echo -e "${BOLD}Uninstall yourcounterpart${RESET}"
   echo ""
   echo "  This will delete:"
-  echo "    • ${HOME}/.local/bin/yourclaude  (symlink)"
+  echo "    • ${HOME}/.local/bin/yourcounterpart  (symlink)"
   echo "    • ${TOOLBOX_INSTALL_DIR}/  (toolbox repo)"
   echo "    • ${GLOBAL_CONFIG_DIR}/  (global config)"
   echo "    • Required Claude plugins and marketplaces"
@@ -298,16 +321,16 @@ run_uninstall() {
     exit 0
   fi
 
-  rm -f "${HOME}/.local/bin/yourclaude"
+  rm -f "${HOME}/.local/bin/yourcounterpart"
   echo "  [✓] Removed symlink."
 
   # Remove completion lines from rc files
   for rc_file in "${HOME}/.zshrc" "${HOME}/.bashrc" "${HOME}/.bash_profile"; do
-    if [[ -f "$rc_file" ]] && grep -qF 'yourclaude' "$rc_file"; then
+    if [[ -f "$rc_file" ]] && grep -qF 'yourcounterpart' "$rc_file"; then
       # Remove the comment line and the source line added by the installer
       local tmp
       tmp=$(mktemp)
-      grep -v 'yourclaude' "$rc_file" | grep -v 'counterpart-toolbox installer' > "$tmp"
+      grep -v 'yourcounterpart' "$rc_file" | grep -v 'counterpart-toolbox installer' > "$tmp"
       mv "$tmp" "$rc_file"
       echo "  [✓] Removed completions from ${rc_file}."
     fi
@@ -326,55 +349,6 @@ run_uninstall() {
     echo "  [✓] Cleared Claude plugin cache."
   fi
 
-  # Uninstall plugins and marketplaces registered by counterpart-toolbox
-  if command -v claude &>/dev/null && [[ -n "${COUNTERPART_CONFIG:-}" && -f "$COUNTERPART_CONFIG" ]]; then
-    # Uninstall required plugins
-    local plugins=()
-    while IFS= read -r plugin; do
-      [[ -n "$plugin" ]] && plugins+=("$plugin")
-    done < <(jq -r '.required_plugins[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
-
-    if [[ ${#plugins[@]} -gt 0 ]]; then
-      echo ""
-      echo "  Uninstalling Claude plugins..."
-      local installed_output
-      installed_output=$(claude plugin list 2>/dev/null || echo "")
-      for plugin in "${plugins[@]}"; do
-        local plugin_full
-        plugin_full=$(echo "$installed_output" | grep -o "${plugin}@[^ ]*" | head -1)
-        local target="${plugin_full:-$plugin}"
-        if claude plugin uninstall "$target" 2>&1 | grep -qiv 'error\|not found\|failed'; then
-          echo "  [✓] Uninstalled plugin '$plugin'."
-        else
-          claude plugin uninstall "$target" &>/dev/null || true
-          echo "  [✓] Uninstalled plugin '$plugin'."
-        fi
-      done
-    fi
-
-    # Remove registered marketplaces
-    local marketplaces=()
-    while IFS= read -r mp; do
-      [[ -n "$mp" ]] && marketplaces+=("$mp")
-    done < <(jq -r '.marketplaces[]? // empty' "$COUNTERPART_CONFIG" 2>/dev/null)
-
-    if [[ ${#marketplaces[@]} -gt 0 ]]; then
-      echo ""
-      echo "  Removing Claude plugin marketplaces..."
-      for marketplace in "${marketplaces[@]}"; do
-        # `claude plugin marketplace remove` takes the registered name, not the URL.
-        # Derive name: strip .git suffix and take the last path component.
-        local mp_name
-        mp_name=$(basename "$marketplace" .git)
-        if claude plugin marketplace remove "$mp_name" &>/dev/null; then
-          echo "  [✓] Removed marketplace '${mp_name}'."
-        else
-          echo "  [!] Could not remove marketplace '${mp_name}' (may already be gone)."
-        fi
-      done
-    fi
-  fi
-
   if [[ "${remove_workspace:-N}" =~ ^[Yy]$ && -n "${COUNTERPART_WORKSPACE:-}" ]]; then
     rm -rf "${COUNTERPART_WORKSPACE}/.counterpart"
     echo "  [✓] Removed ${COUNTERPART_WORKSPACE}/.counterpart/"
@@ -390,20 +364,13 @@ run_uninstall() {
 run_health_checks() {
   local all_ok=0
 
-  # [1] claude CLI
-  check_claude || { all_ok=1; return 1; }
-
-  # [2] required CLI tools (jq, ripgrep, etc.)
+  # [1] required CLI tools (jq, ripgrep, etc.)
   check_tools
 
-  # [3] & [4] marketplace + plugins
-  check_marketplace
-  check_plugins
-
-  # [5] MCP servers
+  # [2] MCP servers
   check_mcp_servers || { all_ok=1; return 1; }
 
-  # [6] CLAUDE.md guidelines
+  # [3] guidelines
   check_guidelines
 
   # Update last_check timestamp in state.json
@@ -425,7 +392,7 @@ run_status() {
   echo ""
 
   if ! load_workspace; then
-    echo "  [!] Not configured. Run: yourclaude setup"
+    echo "  [!] Not configured. Run: yourcounterpart setup"
     echo ""
     exit 1
   fi
@@ -457,6 +424,23 @@ main() {
       run_update
       exit 0
       ;;
+    context)
+      local subcmd="${2:-}"
+      case "$subcmd" in
+        sync)
+          context_lock_generate "context" "context.lock" "$PWD"
+          exit $?
+          ;;
+        validate)
+          context_lock_validate "context" "context.lock" "$PWD"
+          exit $?
+          ;;
+        *)
+          echo "  Usage: yourcounterpart context <sync|validate>"
+          exit 1
+          ;;
+      esac
+      ;;
     status)
       run_status
       exit 0
@@ -473,20 +457,19 @@ main() {
       banner
       cat <<'USAGE'
   Usage:
-    yourclaude               Launch Claude after health checks
-    yourclaude "write tests" Pass arguments to claude
-    yourclaude setup         Re-run setup wizard
-    yourclaude status        Show health check results
-    yourclaude update        Self-update toolbox and plugins
-    yourclaude reset         Clear configuration and start fresh
-    yourclaude uninstall     Remove yourclaude from this machine
+    yourcounterpart            Check environment status
+    yourcounterpart setup      Detect agents, install company context
+    yourcounterpart update     Pull latest plugins and re-sync
+    yourcounterpart status     Show health check results
+    yourcounterpart reset      Clear configuration and start fresh
+    yourcounterpart uninstall  Remove yourcounterpart from this machine
 
 USAGE
       exit 0
       ;;
   esac
 
-  # Normal invocation: health check then launch claude
+  # Normal invocation: health check and show status
   if ! load_workspace; then
     banner
     echo "  No configuration found. Running first-time setup..."
@@ -496,30 +479,22 @@ USAGE
   else
     # Quiet health checks on each invocation
     echo ""
-    echo -e "${BOLD}${CYAN}yourclaude${RESET}  v${TOOLBOX_VERSION}  checking environment..."
+    echo -e "${BOLD}${CYAN}yourcounterpart${RESET}  v${TOOLBOX_VERSION}  checking environment..."
     echo ""
 
     check_for_update
 
     if ! run_health_checks; then
       echo ""
-      echo "  Some checks failed. Run 'yourclaude status' for details."
+      echo "  Some checks failed. Run 'yourcounterpart status' for details."
       exit 1
     fi
     echo ""
   fi
 
-  # Kick off a background fetch so the next run's update check has fresh data.
-  # Must happen before exec (which replaces this process), but the background
-  # job is already detached and will complete independently.
   trigger_background_fetch
-
-  # Hand off to claude — inject guidelines if no CLAUDE.md or header missing
-  if [[ -n "${CLAUDE_INJECT_GUIDELINES:-}" ]]; then
-    exec claude --append-system-prompt "$CLAUDE_INJECT_GUIDELINES" "$@"
-  else
-    exec claude "$@"
-  fi
+  echo "  Environment ready. Open your AI agent — company context is already configured."
+  echo ""
 }
 
 main "$@"

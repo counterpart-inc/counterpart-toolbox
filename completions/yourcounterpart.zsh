@@ -1,14 +1,14 @@
-#compdef yourclaude
-# zsh completion for yourclaude
+#compdef yourcounterpart
+# zsh completion for yourcounterpart
 
-_yourclaude() {
+_yourcounterpart() {
   local -a subcommands
   subcommands=(
     'setup:Run the first-time setup wizard'
     'status:Show health check results without launching Claude'
     'update:Self-update toolbox, plugins submodule, and re-install plugins'
     'reset:Clear configuration and start fresh'
-    'uninstall:Remove yourclaude, plugins, and marketplaces from this machine'
+    'uninstall:Remove yourcounterpart, plugins, and marketplaces from this machine'
     'help:Show usage information'
     '--help:Show usage information'
     '-h:Show usage information'
@@ -19,4 +19,4 @@ _yourclaude() {
   fi
 }
 
-_yourclaude "$@"
+_yourcounterpart "$@"
