@@ -13,12 +13,13 @@ Distributes company-standard AI context — rules, skills, and agents — to eve
 | # | What happens | How |
 |---|-------------|-----|
 | 1 | Asks for your Counterpart workspace folder | Prompts once, remembers forever |
-| 2 | Creates `{workspace}/.counterpart/` with agents, rules, skills | Copied from toolbox defaults |
-| 3 | Sets `COUNTERPART_WORKSPACE` in your shell rc | Available in every session |
-| 4 | Detects which AI agents you have installed | Checks for `claude`, `opencode`, `pi` |
-| 5 | Persists detected providers to `config.json` | Used by sync and update |
-| 6 | Checks required CLI tools and MCP servers | `jq`, `ripgrep`, `ast-grep`, Linear, Sentry, Context7 |
-| 7 | Syncs rules, skills, and agents to every provider | Native formats per agent |
+| 2 | Creates `{workspace}/.counterpart/` with company agents, rules, skills | Copied from toolbox defaults |
+| 3 | Creates `{workspace}/.counterpart/personal/` for your own additions | Never overwritten by updates |
+| 4 | Sets `COUNTERPART_WORKSPACE` in your shell rc | Available in every session |
+| 5 | Detects which AI agents you have installed | Checks for `claude`, `opencode`, `pi` |
+| 6 | Persists detected providers to `config.json` | Used by sync and update |
+| 7 | Checks required CLI tools and MCP servers | `jq`, `ripgrep`, `ast-grep`, Linear, Sentry, Context7 |
+| 8 | Syncs rules, skills, and agents to every provider | Company + personal, native formats per agent |
 
 After setup, **open your agent directly** — no wrapper, no interception. Company context is already there.
 
@@ -137,9 +138,9 @@ Setup creates a `.counterpart/` directory inside your Counterpart workspace:
 
 **`setup`** — run once. Creates `.counterpart/`, copies defaults from the toolbox, detects providers, syncs.
 
-**`sync`** — reads `.counterpart/` and writes to every detected provider's native config format. Run this after manually editing agents, rules, or skills.
+**`sync`** — reads `.counterpart/` (company + personal) and writes everything to every detected provider's native config format. Run this after editing anything in `.counterpart/`.
 
-**`update`** — pulls the latest toolbox from GitHub, copies updated agents/rules/skills into `.counterpart/`, then runs sync.
+**`update`** — pulls the latest toolbox from GitHub, copies updated company agents/rules/skills into `.counterpart/`, then runs sync. Your `personal/` directory is never touched.
 
 ### Sync targets
 
@@ -164,13 +165,45 @@ See `ci/check-context-lock.sh` for the CI enforcement script.
 
 ---
 
+## Personal Customizations
+
+Add your own agents, rules, and skills to `.counterpart/personal/`. They sync to all your providers alongside the company defaults and are **never overwritten** by `yourcounterpart update`.
+
+```
+{workspace}/.counterpart/personal/
+├── agents/
+│   └── my-agent/
+│       ├── body.md        ← shared system prompt
+│       ├── opencode.md    ← OpenCode frontmatter (if you use OpenCode)
+│       └── claude.md      ← Claude Code frontmatter (if you use Claude Code)
+├── rules/
+│   └── my-conventions.md  ← injected after company rules
+└── skills/
+    └── my-skill/
+        └── SKILL.md
+```
+
+Use the `add-user-tool` skill to scaffold the right files for your configured providers:
+
+```
+/add-user-tool agent
+/add-user-tool rule
+/add-user-tool skill
+```
+
+Then apply: `yourcounterpart sync`
+
+**Collision behaviour:** personal agents and skills override company ones if they share the same name. Personal rules are appended after company rules (never replace them).
+
+---
+
 ## Updating
 
 ```bash
 yourcounterpart update
 ```
 
-Pulls the latest toolbox, copies updated agents/rules/skills into `.counterpart/`, then re-syncs to all providers.
+Pulls the latest toolbox, copies updated company agents/rules/skills into `.counterpart/`, then re-syncs to all providers. Your `personal/` directory is never touched.
 
 ---
 
