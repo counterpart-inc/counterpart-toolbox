@@ -1,7 +1,7 @@
 # counterpart-toolbox
 
 > **yourcounterpart** — Counterpart's agent-agnostic AI context installer.
-
+-- test --
 Distributes company-standard AI context — rules, skills, and agents — to every Counterpart developer's AI coding tool. Works with Claude Code, OpenCode, and Pi. You keep using your agent. It already has the right context.
 
 ---
