@@ -49,8 +49,23 @@ git commit -m "ci: add context-lock check"
 git push
 ```
 
-**5. Enable branch protection:**
-In GitHub: Settings → Branches → main → add `check` as a required status check. Without this, CI runs but doesn't block merges.
+**5. Enable branch protection + merge queue:**
+
+In GitHub: Settings → Branches → main:
+- Add `check` as a required status check — CI must pass before merging
+- Enable **merge queue** (recommended) — GitHub auto-rebases each PR on top of current main before running CI, so Check 1 enforces freshness even when main moved after the PR was created
+- OR enable **"Require branches to be up to date before merging"** — forces the PR author to rebase manually before the merge button appears
+
+**Merge queue vs "require up to date":**
+
+| | Merge queue | Require up to date |
+|---|---|---|
+| Who rebases | GitHub automatically | PR author manually |
+| Check 1 role | Primary enforcer on rebased state | Same |
+| Check 2 role | Early warning (catches before queue) | Primary enforcer |
+| Stale CI result | Handled — queue always rebases | Not handled — CI must re-run |
+
+The merge queue is the stronger option: it makes Check 1 the final gate on the actual merged state, and Check 2 saves round-trips by catching issues before the PR even enters the queue.
 
 ---
 
