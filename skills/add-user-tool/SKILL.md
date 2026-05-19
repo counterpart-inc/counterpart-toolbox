@@ -19,11 +19,18 @@ Add a personal tool to `.counterpart/personal/` so `yourcounterpart sync` distri
 
 Personal agents use the same directory format as the toolbox: one dir per agent with provider-specific frontmatter and a shared body.
 
+**First, read the user's configured providers:**
+```bash
+jq -r '.providers[]' $COUNTERPART_WORKSPACE/.counterpart/config.json
+```
+
+Create one `{provider}.md` file **per configured provider** — skip providers not in that list.
+
 ```
 $COUNTERPART_WORKSPACE/.counterpart/personal/agents/<name>/
-├── body.md        ← shared system prompt (plain markdown, no frontmatter)
-├── opencode.md    ← OpenCode frontmatter
-└── claude.md      ← Claude Code frontmatter (optional)
+├── body.md          ← shared system prompt (plain markdown, no frontmatter)
+├── opencode.md      ← only if "opencode" is in providers
+└── claude.md        ← only if "claude" is in providers
 ```
 
 **`opencode.md`:**
