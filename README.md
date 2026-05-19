@@ -121,9 +121,13 @@ Setup creates a `.counterpart/` directory inside your Counterpart workspace:
 ```
 {workspace}/.counterpart/
 ├── config.json          ← providers, tools, MCPs, last_sync
-├── agents/              ← agent definitions
-├── rules/               ← company-wide rules (always applied)
-├── skills/              ← company skills (on-demand)
+├── agents/              ← company agent definitions (managed, overwritten on update)
+├── rules/               ← company-wide rules (managed, overwritten on update)
+├── skills/              ← company skills (managed, overwritten on update)
+├── personal/            ← your personal additions (never touched by update)
+│   ├── agents/          ← personal agents (synced to all providers)
+│   ├── rules/           ← personal rules (appended after company rules)
+│   └── skills/          ← personal skills (synced to all providers)
 └── toolbox.lock         ← written after every sync
 ```
 

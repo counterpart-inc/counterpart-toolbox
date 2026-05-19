@@ -24,9 +24,16 @@ source "${TOOLBOX_DIR}/lib/sync/_common.sh"
 
 sync_cursor() {
   local agents_dir="$1"
-  _sync_rules  "$agents_dir" "${HOME}/.cursor/rules/counterpart.md"
+  local personal_dir="${2:-}"
+  local sync_dirs=("$agents_dir")
+  [[ -d "$personal_dir" ]] && sync_dirs+=("$personal_dir")
+  _sync_rules_combined "${HOME}/.cursor/rules/counterpart.md" "${sync_dirs[@]}"
   _sync_agents "$agents_dir" "${HOME}/.cursor/agents" "cursor"
   _sync_skills "$agents_dir" "${HOME}/.cursor/skills"
+  if [[ -d "$personal_dir" ]]; then
+    _sync_agents "$personal_dir" "${HOME}/.cursor/agents" "cursor"
+    _sync_skills "$personal_dir" "${HOME}/.cursor/skills"
+  fi
   echo "  [✓] cursor"
 }
 ```
@@ -138,6 +145,8 @@ sync_global "$cp_dir" "${providers[@]}"
 
 - [ ] `lib/sync/{provider}.sh` created
 - [ ] Function named `sync_{provider}`
+- [ ] Function accepts `personal_dir` as second arg and applies personal layer (see existing providers)
+- [ ] `_sync_rules_combined` used instead of `_sync_rules` (handles both company + personal rules in one managed block)
 - [ ] `_sync_agents` called with provider name as third arg
 - [ ] `{provider}.md` frontmatter added to every agent directory in `agents/`
 - [ ] Detection added to `run_setup()` in `yourcounterpart`

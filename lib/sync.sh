@@ -29,7 +29,7 @@ sync_global() {
     fi
     # shellcheck source=/dev/null
     source "$provider_script"
-    "sync_${provider}" "$agents_dir"
+    "sync_${provider}" "$agents_dir" "${agents_dir}/personal"
   done
 
   echo "  [✓] Sync complete"

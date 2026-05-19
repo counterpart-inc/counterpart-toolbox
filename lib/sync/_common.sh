@@ -99,6 +99,22 @@ _sync_rules() {
   rm "$tmp"
 }
 
+# _sync_rules_combined <target_file> <dir...>
+# Concatenate rules from multiple source dirs and inject once into target_file's managed section.
+# Use this instead of calling _sync_rules twice (which would overwrite the managed block).
+_sync_rules_combined() {
+  local target="$1"
+  shift
+  local tmp
+  tmp=$(mktemp)
+  for dir in "$@"; do
+    _rules_combined "$dir" >> "$tmp"
+  done
+  if [[ ! -s "$tmp" ]]; then rm "$tmp"; return 0; fi
+  _upsert_managed "$target" "$tmp"
+  rm "$tmp"
+}
+
 # _sync_agents <agents_dir> <target_dir> <provider>
 # Syncs agents to target_dir. Handles two shapes:
 #   Flat file:  agents/name.md          → copied verbatim

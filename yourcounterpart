@@ -174,6 +174,7 @@ run_setup() {
   # 2. Create .counterpart/ structure
   local cp_dir="${workspace}/.counterpart"
   mkdir -p "${cp_dir}/agents" "${cp_dir}/skills" "${cp_dir}/rules"
+  mkdir -p "${cp_dir}/personal/agents" "${cp_dir}/personal/rules" "${cp_dir}/personal/skills"
 
   # 3. Copy boilerplate
   _install_defaults "$cp_dir"

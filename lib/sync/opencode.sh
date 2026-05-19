@@ -14,8 +14,15 @@ source "${TOOLBOX_DIR}/lib/sync/_common.sh"
 
 sync_opencode() {
   local agents_dir="$1"
-  _sync_rules "$agents_dir" "${HOME}/.config/opencode/AGENTS.md"
-  _sync_agents     "$agents_dir" "${HOME}/.config/opencode/agents" "opencode"
-  _sync_skills     "$agents_dir" "${HOME}/.config/opencode/skills"
+  local personal_dir="${2:-}"
+  local sync_dirs=("$agents_dir")
+  [[ -d "$personal_dir" ]] && sync_dirs+=("$personal_dir")
+  _sync_rules_combined "${HOME}/.config/opencode/AGENTS.md" "${sync_dirs[@]}"
+  _sync_agents "$agents_dir" "${HOME}/.config/opencode/agents" "opencode"
+  _sync_skills "$agents_dir" "${HOME}/.config/opencode/skills"
+  if [[ -d "$personal_dir" ]]; then
+    _sync_agents "$personal_dir" "${HOME}/.config/opencode/agents" "opencode"
+    _sync_skills "$personal_dir" "${HOME}/.config/opencode/skills"
+  fi
   echo "  [✓] opencode"
 }

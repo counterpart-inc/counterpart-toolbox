@@ -14,7 +14,13 @@ source "${TOOLBOX_DIR}/lib/sync/_common.sh"
 
 sync_pi() {
   local agents_dir="$1"
-  _sync_rules  "$agents_dir" "${HOME}/.pi/agent/AGENTS.md"
+  local personal_dir="${2:-}"
+  local sync_dirs=("$agents_dir")
+  [[ -d "$personal_dir" ]] && sync_dirs+=("$personal_dir")
+  _sync_rules_combined "${HOME}/.pi/agent/AGENTS.md" "${sync_dirs[@]}"
   _sync_skills "$agents_dir" "${HOME}/.pi/agent/skills"
+  if [[ -d "$personal_dir" ]]; then
+    _sync_skills "$personal_dir" "${HOME}/.pi/agent/skills"
+  fi
   echo "  [✓] pi"
 }
