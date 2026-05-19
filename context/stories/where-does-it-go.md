@@ -50,6 +50,25 @@ Examples: preferred model, personal skills, custom keybindings, UI theme.
 
 ---
 
+## Rules vs Stories — The Context Window Tax
+
+Every rule in the managed block is injected into **every session, every message, across every repo**. It permanently occupies context window space, whether relevant or not.
+
+Stories are free until read. They only cost tokens when the agent actually loads them — triggered by `context/index.md` discovery.
+
+This means the bar for adding a rule is high:
+
+| Add as a rule if... | Add as a story if... |
+|---------------------|----------------------|
+| Must be enforced on every single message | Only relevant in specific situations |
+| Non-negotiable company baseline | Guidance, how-tos, conventions |
+| Short — a sentence or two | Can be as long as needed |
+| Applies to all repos, all users, always | Applies when doing a specific task |
+
+When in doubt, make it a story.
+
+---
+
 ## Hierarchy Enforcement
 
 The toolbox tier is authoritative. `rules/00-hierarchy.md` is always the first rule injected into every agent's managed block. It explicitly instructs the agent to disregard any instruction outside that block that contradicts company rules.
