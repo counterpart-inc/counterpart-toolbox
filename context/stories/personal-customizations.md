@@ -8,9 +8,13 @@ Users can add their own agents, rules, and skills to `.counterpart/personal/`. T
 
 ```
 {workspace}/.counterpart/personal/
-├── agents/     ← flat .md files, copied verbatim to provider agent dirs
-├── rules/      ← .md files with name frontmatter, appended after company rules
-└── skills/     ← skill dirs (name/SKILL.md), copied to provider skill dirs
+├── agents/            ← same directory format as toolbox agents/
+│   └── my-agent/
+│       ├── body.md        ← shared system prompt
+│       ├── opencode.md    ← OpenCode frontmatter
+│       └── claude.md      ← Claude Code frontmatter
+├── rules/             ← .md files with name frontmatter, appended after company rules
+└── skills/            ← skill dirs (name/SKILL.md), copied to provider skill dirs
 ```
 
 ---

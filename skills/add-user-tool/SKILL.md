@@ -17,22 +17,42 @@ Add a personal tool to `.counterpart/personal/` so `yourcounterpart sync` distri
 
 ## Adding an agent
 
-Personal agents sync to every provider that supports agents (OpenCode, Claude Code).
+Personal agents use the same directory format as the toolbox: one dir per agent with provider-specific frontmatter and a shared body.
 
-Create `$COUNTERPART_WORKSPACE/.counterpart/personal/agents/<name>.md`:
+```
+$COUNTERPART_WORKSPACE/.counterpart/personal/agents/<name>/
+├── body.md        ← shared system prompt (plain markdown, no frontmatter)
+├── opencode.md    ← OpenCode frontmatter
+└── claude.md      ← Claude Code frontmatter (optional)
+```
 
+**`opencode.md`:**
 ```yaml
 ---
 description: What this agent does and when to use it.
 mode: all
 ---
+```
 
-Your agent system prompt here.
+**`claude.md`:**
+```yaml
+---
+name: <name>
+description: What this agent does and when to use it.
+---
+```
+
+**`body.md`** — plain markdown, no frontmatter:
+```markdown
+You are a specialist in X. Focus on Y.
+Always do Z.
 ```
 
 - `mode: all` — available via Tab (primary) and @ mention (subagent)
 - `mode: subagent` — @ mention only
-- `mode: primary` — Tab only (avoid this, hides agent from @ menu)
+- `mode: primary` — Tab only (avoid, hides agent from @ menu)
+
+If a provider file is missing for an agent, that agent is skipped for that provider.
 
 ---
 
