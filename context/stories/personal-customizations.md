@@ -51,3 +51,4 @@ Then sync: `yourcounterpart sync`
 | Applies only to one repo | That repo's `AGENTS.md` or `.opencode/agents/` |
 
 See `context/stories/where-does-it-go.md` for the full decision framework.
+-- test --
