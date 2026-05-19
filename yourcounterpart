@@ -298,6 +298,7 @@ run_update() {
     rsync -a --delete "${TOOLBOX_DIR}/skills/" "${cp_dir}/skills/" 2>/dev/null || \
       cp -r "${TOOLBOX_DIR}/skills/." "${cp_dir}/skills/"
   fi
+  mkdir -p "${cp_dir}/personal/agents" "${cp_dir}/personal/rules" "${cp_dir}/personal/skills"
   echo "  [✓] .counterpart updated"
   echo ""
 
