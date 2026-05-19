@@ -152,31 +152,59 @@ context_lock_ci_check() {
     fi
   fi
 
-  # Check 2 — PR contains all entries from base branch (not behind main)
+  # Check 2 — PR is not behind main (merge-base aware)
   echo "  [2/2] checking not behind ${base_branch}..."
-  local base_ref
+  local base_ref=""
   for ref in "origin/${base_branch}" "${base_branch}"; do
     if git show "${ref}:${lock_file}" &>/dev/null 2>&1; then
       base_ref="$ref"; break
     fi
   done
 
-  if [[ -z "${base_ref:-}" ]]; then
+  if [[ -z "$base_ref" ]]; then
     echo "  [→] no ${lock_file} on ${base_branch} — skipping check 2"
   elif [[ ! -f "${repo_root}/${lock_file}" ]]; then
     _ci_fail "${lock_file} missing on this branch but exists on ${base_branch}"
   else
-    local missing=0
-    while IFS= read -r path; do
-      [[ -z "$path" ]] && continue
-      if ! grep -q "[[:space:]]${path}$" "${repo_root}/${lock_file}"; then
-        _ci_fail "context file missing from this branch: ${path}"
-        _ci_fail "  → a story was merged to ${base_branch} after you branched. Rebase and run: make context-generate"
-        missing=1
-        break
-      fi
-    done < <(git show "${base_ref}:${lock_file}" 2>/dev/null | grep "^sha256:" | grep -v '[[:space:]]\.$' | awk '{print $2}')
-    [[ "$missing" -eq 0 ]] && echo "  [✓] not behind ${base_branch}"
+    local merge_base
+    merge_base=$(git merge-base HEAD "$base_ref" 2>/dev/null || echo "")
+
+    if [[ -z "$merge_base" ]]; then
+      echo "  [→] could not determine merge base — skipping check 2"
+    else
+      local base_lock main_lock
+      base_lock=$(git show "${merge_base}:${lock_file}" 2>/dev/null || echo "")
+      main_lock=$(git show "${base_ref}:${lock_file}" 2>/dev/null || echo "")
+
+      local ok=0
+      while IFS= read -r main_entry; do
+        [[ -z "$main_entry" ]] && continue
+        local main_hash main_path
+        main_hash=$(awk '{print $1}' <<< "$main_entry")
+        main_path=$(awk '{print $2}' <<< "$main_entry")
+
+        local base_hash
+        base_hash=$(grep "[[:space:]]${main_path}$" <<< "$base_lock" | awk '{print $1}' || echo "")
+
+        if [[ -z "$base_hash" ]]; then
+          if ! grep -q "[[:space:]]${main_path}$" "${repo_root}/${lock_file}"; then
+            _ci_fail "new story on ${base_branch} missing from this branch: ${main_path}"
+            _ci_fail "  → rebase on ${base_branch} and run: make context-generate"
+            ok=1
+          fi
+        elif [[ "$main_hash" != "$base_hash" ]]; then
+          local pr_hash
+          pr_hash=$(grep "[[:space:]]${main_path}$" "${repo_root}/${lock_file}" | awk '{print $1}' || echo "")
+          if [[ "$pr_hash" != "$main_hash" ]]; then
+            _ci_fail "story updated on ${base_branch} after you branched: ${main_path}"
+            _ci_fail "  → rebase on ${base_branch} and run: make context-generate"
+            ok=1
+          fi
+        fi
+      done < <(grep "^sha256:" <<< "$main_lock" | grep -v '[[:space:]]\.$')
+
+      [[ "$ok" -eq 0 ]] && echo "  [✓] not behind ${base_branch}"
+    fi
   fi
 
   echo ""
