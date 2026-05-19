@@ -10,7 +10,7 @@ A decision framework for placing content in the right tier.
 |------|----------|----------|------------|
 | **Toolbox** | `counterpart-toolbox` repo | All Counterpart engineers | Platform team via `yourcounterpart update` |
 | **Repo** | Each project repo (`context/`) | Devs working on that codebase | Any engineer via PR |
-| **User** | Local machine only, never committed | Individual developer | The developer themselves |
+| **Personal** | `{workspace}/.counterpart/personal/` | Individual developer | The developer themselves via `yourcounterpart sync` |
 
 ---
 
@@ -29,9 +29,9 @@ Examples: security conventions, context-discovery rule, the company agent, the c
 Examples: how to add a provider to this repo, the email notification pattern, Django migration conventions for this app.
 
 ### 3. Is it a personal preference or workflow that shouldn't affect teammates?
-→ **User** (outside the managed block in `CLAUDE.md`/`AGENTS.md`, local settings files)
+→ **Personal** (`.counterpart/personal/agents/`, `rules/`, or `skills/`) — synced to all your providers via `yourcounterpart sync`
 
-Examples: preferred model, personal skills, custom keybindings, UI theme.
+Examples: a Django specialist agent, your own coding conventions, a personal skill for a workflow only you use.
 
 ---
 
@@ -46,12 +46,11 @@ Examples: preferred model, personal skills, custom keybindings, UI theme.
 | What this module does / conventions | Repo → `{module}/.context.md` |
 | Project knowledge index | Repo → `context/index.md` |
 | Repo-specific rule or convention | Repo → `AGENTS.md` at repo root |
-| Personal model preference | User → local config |
-| Personal rule (not for teammates) | User → outside managed block |
-| Personal skill | User → drop in `~/.claude/skills/` etc. |
-| Personal agent | User → drop in `~/.claude/agents/` etc. |
+| Personal agent | Personal → `.counterpart/personal/agents/` → use `add-user-tool` skill |
+| Personal rule (not for teammates) | Personal → `.counterpart/personal/rules/` → use `add-user-tool` skill |
+| Personal skill | Personal → `.counterpart/personal/skills/` → use `add-user-tool` skill |
 
-> **Note:** Skills and agents are not supported at the repo level — no single path is natively discovered by all providers. Use the toolbox for company skills, or add them manually to your user paths.
+> **Note:** Skills and agents are not supported at the repo level — no single path is natively discovered by all providers. Use the toolbox for company-wide content, or `.counterpart/personal/` for personal content — both sync to all your providers via `yourcounterpart sync`.
 
 ---
 
