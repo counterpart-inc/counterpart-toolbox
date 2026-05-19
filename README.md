@@ -157,11 +157,21 @@ Rules are injected as **managed blocks** between `<!-- counterpart:managed:start
 Each repo can have a `context/` directory with project knowledge (index, summaries, stories). `context.lock` is a SHA256 hash of all files in `context/`, committed with the code.
 
 ```bash
+# via yourcounterpart CLI
 yourcounterpart context sync      # generate/update context.lock
 yourcounterpart context validate  # check if it's current
+
+# standalone (no yourcounterpart required — copy scripts/context-lock.sh into any repo)
+bash scripts/context-lock.sh generate
+bash scripts/context-lock.sh validate
+bash scripts/context-lock.sh ci-check
 ```
 
-See `ci/check-context-lock.sh` for the CI enforcement script.
+CI is enforced via `.github/workflows/context-lock.yml` — runs two checks on every PR:
+1. Lock matches current `context/` files on the branch
+2. Branch is not missing context that landed on `main` after it was created
+
+See `context/stories/how-to-adopt-context-lock.md` to add this to another repo.
 
 ---
 
