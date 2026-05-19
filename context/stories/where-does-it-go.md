@@ -50,6 +50,17 @@ Examples: preferred model, personal skills, custom keybindings, UI theme.
 
 ---
 
+## Hierarchy Enforcement
+
+The toolbox tier is authoritative. `rules/00-hierarchy.md` is always the first rule injected into every agent's managed block. It explicitly instructs the agent to disregard any instruction outside that block that contradicts company rules.
+
+This means:
+- Repo-level rules can refine and extend — they cannot override
+- User-level rules can personalise — they cannot contradict
+- If there is a conflict, the toolbox rule wins, always
+
+---
+
 ## The Key Test
 
 > "If I push this change, should every Counterpart engineer on every project get it?"
