@@ -83,12 +83,15 @@ yourcounterpart uninstall        # remove yourcounterpart from this machine
 ```
 counterpart-toolbox/
 ├── yourcounterpart            ← main CLI
+├── Makefile                   ← context-generate, context-validate, context-check
 ├── install.sh                 ← curl-installable bootstrap
 ├── VERSION                    ← current toolbox version
 ├── context.lock               ← SHA256 hash of context/ (auto-generated)
 ├── agents/                    ← default agent definitions (copied to .counterpart on setup)
 ├── rules/                     ← default rules (copied to .counterpart on setup)
 ├── skills/                    ← default skills (copied to .counterpart on setup)
+├── scripts/
+│   └── context-lock.sh        ← self-contained context.lock tool (copy into any repo)
 ├── lib/
 │   ├── sync.sh                ← sync orchestrator: reads providers, delegates to lib/sync/
 │   ├── sync/
@@ -96,11 +99,14 @@ counterpart-toolbox/
 │   │   ├── claude.sh          ← sync provider: Claude Code
 │   │   ├── opencode.sh        ← sync provider: OpenCode
 │   │   └── pi.sh              ← sync provider: Pi
-│   ├── context-lock.sh        ← context.lock generate + validate
+│   ├── context-lock.sh        ← thin wrapper over scripts/context-lock.sh
 │   ├── check_tools.sh         ← required CLI tools check
 │   └── check_mcp.sh           ← MCP server health check
+├── .github/
+│   └── workflows/
+│       └── context-lock.yml   ← CI: checks lock is current + not behind main
 ├── ci/
-│   └── check-context-lock.sh  ← CI enforcement script repos can adopt
+│   └── check-context-lock.sh  ← delegates to scripts/context-lock.sh ci-check
 ├── completions/
 │   ├── yourcounterpart.zsh
 │   └── yourcounterpart.bash
@@ -108,7 +114,7 @@ counterpart-toolbox/
 │   └── onboarding-ai-context.md
 └── context/                   ← this repo's own knowledge layer
     ├── index.md
-    └── project-summaries/
+    └── stories/
 ```
 
 ---
@@ -157,19 +163,16 @@ Rules are injected as **managed blocks** between `<!-- counterpart:managed:start
 Each repo can have a `context/` directory with project knowledge (index, summaries, stories). `context.lock` is a SHA256 hash of all files in `context/`, committed with the code.
 
 ```bash
-# via yourcounterpart CLI
-yourcounterpart context sync      # generate/update context.lock
-yourcounterpart context validate  # check if it's current
-
-# standalone (no yourcounterpart required — copy scripts/context-lock.sh into any repo)
-bash scripts/context-lock.sh generate
-bash scripts/context-lock.sh validate
-bash scripts/context-lock.sh ci-check
+make context-generate   # regenerate context.lock
+make context-validate   # check if lock is current
+make context-check      # CI check (both enforcements)
 ```
 
 CI is enforced via `.github/workflows/context-lock.yml` — runs two checks on every PR:
 1. Lock matches current `context/` files on the branch
 2. Branch is not missing context that landed on `main` after it was created
+
+> **Enabling enforcement**: add `check` as a required status check under Settings → Branches → main in GitHub.
 
 See `context/stories/how-to-adopt-context-lock.md` to add this to another repo.
 
