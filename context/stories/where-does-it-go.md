@@ -45,8 +45,13 @@ Examples: preferred model, personal skills, custom keybindings, UI theme.
 | How to do X in this specific repo | Repo → `context/stories/` |
 | What this module does / conventions | Repo → `{module}/.context.md` |
 | Project knowledge index | Repo → `context/index.md` |
+| Repo-specific rule or convention | Repo → `AGENTS.md` at repo root |
 | Personal model preference | User → local config |
 | Personal rule (not for teammates) | User → outside managed block |
+| Personal skill | User → drop in `~/.claude/skills/` etc. |
+| Personal agent | User → drop in `~/.claude/agents/` etc. |
+
+> **Note:** Skills and agents are not supported at the repo level — no single path is natively discovered by all providers. Use the toolbox for company skills, or add them manually to your user paths.
 
 ---
 
