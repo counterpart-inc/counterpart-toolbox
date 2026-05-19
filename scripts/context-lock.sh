@@ -167,15 +167,15 @@ context_lock_ci_check() {
     _ci_fail "${lock_file} missing on this branch but exists on ${base_branch}"
   else
     local missing=0
-    while IFS= read -r entry; do
-      [[ -z "$entry" ]] && continue
-      if ! grep -qF "$entry" "${repo_root}/${lock_file}"; then
-        _ci_fail "missing entry from ${base_branch}: ${entry}"
-        _ci_fail "  → a story was added/updated on ${base_branch} after you branched. Rebase and regenerate."
+    while IFS= read -r path; do
+      [[ -z "$path" ]] && continue
+      if ! grep -q "[[:space:]]${path}$" "${repo_root}/${lock_file}"; then
+        _ci_fail "context file missing from this branch: ${path}"
+        _ci_fail "  → a story was merged to ${base_branch} after you branched. Rebase and run: make context-generate"
         missing=1
         break
       fi
-    done < <(git show "${base_ref}:${lock_file}" 2>/dev/null | grep "^sha256:" | grep -v '[[:space:]]\.$')
+    done < <(git show "${base_ref}:${lock_file}" 2>/dev/null | grep "^sha256:" | grep -v '[[:space:]]\.$' | awk '{print $2}')
     [[ "$missing" -eq 0 ]] && echo "  [✓] not behind ${base_branch}"
   fi
 
