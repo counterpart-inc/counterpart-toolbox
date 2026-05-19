@@ -24,7 +24,9 @@ Personal agents use the same directory format as the toolbox: one dir per agent 
 jq -r '.providers[]' $COUNTERPART_WORKSPACE/.counterpart/config.json
 ```
 
-Create one `{provider}.md` file **per configured provider** — skip providers not in that list.
+Create one `{provider}.md` file **per configured provider that supports agents** — skip providers not in that list.
+
+> **Note:** Pi does not support agents. If the user's only provider is Pi, inform them and stop — there is nothing to create.
 
 ```
 $COUNTERPART_WORKSPACE/.counterpart/personal/agents/<name>/
