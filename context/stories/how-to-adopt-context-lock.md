@@ -8,10 +8,23 @@ No dependency on `yourcounterpart`. The script is self-contained.
 
 ## Setup (one time)
 
-**1. Copy the script into your repo:**
+**1. Copy the script and Makefile targets into your repo:**
 ```bash
 cp path/to/counterpart-toolbox/scripts/context-lock.sh scripts/context-lock.sh
-git add scripts/context-lock.sh
+```
+
+Add these targets to your repo's `Makefile` (create one if needed):
+```makefile
+.PHONY: context-generate context-validate context-check
+
+context-generate:
+	bash scripts/context-lock.sh generate
+
+context-validate:
+	bash scripts/context-lock.sh validate
+
+context-check:
+	bash scripts/context-lock.sh ci-check
 ```
 
 **2. Create your `context/` directory and add content:**
@@ -22,8 +35,8 @@ mkdir -p context
 
 **3. Generate the initial lock:**
 ```bash
-bash scripts/context-lock.sh generate
-git add context.lock
+make context-generate
+git add scripts/context-lock.sh Makefile context.lock
 git commit -m "chore: add context.lock"
 ```
 
@@ -33,23 +46,27 @@ mkdir -p .github/workflows
 cp path/to/counterpart-toolbox/.github/workflows/context-lock.yml .github/workflows/context-lock.yml
 git add .github/workflows/context-lock.yml
 git commit -m "ci: add context-lock check"
+git push
 ```
+
+**5. Enable branch protection:**
+In GitHub: Settings → Branches → main → add `check` as a required status check. Without this, CI runs but doesn't block merges.
 
 ---
 
 ## Daily workflow
 
-After editing any file under `context/`, regenerate the lock before pushing:
+After editing any file under `context/`, regenerate before pushing:
 
 ```bash
-bash scripts/context-lock.sh generate
+make context-generate
 git add context.lock
 git commit -m "docs: update context"
 ```
 
-Or check first if it's stale:
+Check if stale without regenerating:
 ```bash
-bash scripts/context-lock.sh validate
+make context-validate
 ```
 
 ---
