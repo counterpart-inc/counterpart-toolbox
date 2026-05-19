@@ -78,9 +78,19 @@ description: What this agent does and when to invoke it.
 ```yaml
 ---
 description: What this agent does and when to invoke it.
-mode: subagent
+mode: all
 ---
 ```
+
+OpenCode `mode` options:
+
+| Value | Selectable via Tab | Selectable via `@` mention |
+|-------|-------------------|---------------------------|
+| `all` (default) | ✓ | ✓ |
+| `primary` | ✓ | ✗ |
+| `subagent` | ✗ | ✓ |
+
+Use `mode: all` for most agents. Use `mode: subagent` only for internal helpers you don't want showing up in the Tab cycle. Avoid `mode: primary` — it hides the agent from `@` mentions.
 
 **`body.md`** — plain markdown, no frontmatter:
 ```markdown
