@@ -49,7 +49,8 @@ _ask_yn() {
   printf "    %s %s " "$prompt" "$hint"
   local answer; read -r answer </dev/tty
   answer="${answer:-$default}"
-  [[ "${answer,,}" =~ ^y ]]
+  answer=$(echo "$answer" | tr '[:upper:]' '[:lower:]')
+  [[ "$answer" =~ ^y ]]
 }
 
 # ── Prefs ───────────────────────────────────────────────────────────────────────
@@ -102,6 +103,13 @@ run_configure() {
 
   for provider in "${detected[@]}"; do
     echo -e "  ${BOLD}$(provider_label "$provider")${RESET}"
+    echo ""
+
+    # Provider-level toggle
+    if ! _ask_yn "Sync to $(provider_label "$provider")?" "y"; then
+      echo ""
+      continue
+    fi
     echo ""
 
     local selected_assets=()
