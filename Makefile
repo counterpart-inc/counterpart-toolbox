@@ -1,15 +1,37 @@
-.PHONY: install sync status configure
+.PHONY: install uninstall sync status configure
 
 ## Install counterpart toolbox locally (dev mode — uses this repo directly)
 install:
 	mkdir -p ~/.local/bin
 	ln -sf "$(PWD)/counterpart" ~/.local/bin/counterpart
 	chmod +x counterpart
-	@echo "Installed. Run: counterpart sync"
+	@bash -c '\
+		RC=~/.zshrc; \
+		if grep -qF "# >>> counterpart-toolbox" "$$RC" 2>/dev/null; then \
+			echo "Hook already in $$RC — skipping"; \
+		else \
+			printf "\n# >>> counterpart-toolbox\nexport PATH=\"\$${HOME}/.local/bin:\$${PATH}\"\n_CT_TOOLBOX=\"$(PWD)\"\nif [[ -f \"\$${_CT_TOOLBOX}/lib/update-check.sh\" ]]; then\n  source \"\$${_CT_TOOLBOX}/lib/update-check.sh\"\n  _ct_update_check 2>/dev/null || true\nfi\nunset _CT_TOOLBOX\n# <<< counterpart-toolbox\n" >> "$$RC"; \
+			echo "Added hook to $$RC"; \
+		fi'
+	@echo ""
+	@echo "Done. Reload your shell: source ~/.zshrc"
+	@echo "Then run: counterpart sync"
 
-## Run sync
+## Remove hook and symlink
+uninstall:
+	rm -f ~/.local/bin/counterpart
+	@bash -c '\
+		RC=~/.zshrc; \
+		if grep -qF "# >>> counterpart-toolbox" "$$RC" 2>/dev/null; then \
+			tmp=$$(mktemp); \
+			awk "/# >>> counterpart-toolbox/{skip=1} /# <<< counterpart-toolbox/{skip=0; next} !skip{print}" "$$RC" > "$$tmp"; \
+			mv "$$tmp" "$$RC"; \
+			echo "Removed hook from $$RC"; \
+		fi'
+
+## Run sync against local generated/ (dev shortcut)
 sync:
-	bash counterpart sync
+	bash counterpart sync --source ../counterpart-plugins/generated
 
 ## Show status
 status:
