@@ -37,12 +37,9 @@ sync_provider_claude() {
         fi
         ;;
       mcp)
-        local mcp_source="${source}/../opencode/opencode.mcp.json"  # reuse MCP source
+        local mcp_source="${source}/mcp.json"
         local mcp_target="${PWD}/.mcp.json"
         if [[ -f "$mcp_source" ]]; then
-          # Claude uses its own format: convert back from opencode format
-          # Actually Claude's .mcp.json is already in counterpart-plugins@generated
-          # The raw .mcp.json lives at the plugin level; for now just merge counterpart-* keys
           _merge_mcp_claude "$mcp_source" "$mcp_target"
         fi
         ;;
@@ -50,8 +47,9 @@ sync_provider_claude() {
   done
 }
 
-# _merge_mcp_claude <opencode_mcp_source> <target_mcp_json>
-#   Converts OpenCode MCP format back to Claude format and merges counterpart-* keys.
+# _merge_mcp_claude <source_mcp_json> <target_mcp_json>
+#   Merges counterpart-* keys from source (Claude format) into target .mcp.json.
+#   Never touches non-counterpart-* keys in target.
 _merge_mcp_claude() {
   local source="$1"
   local target="$2"
@@ -63,28 +61,13 @@ _merge_mcp_claude() {
   local tmp
   tmp=$(mktemp)
 
-  # Convert opencode format → claude format and merge counterpart-* keys
   jq -s '
     .[0] as $target |
-    .[1].mcp as $source_mcp |
-    # Convert opencode format to claude format
-    ($source_mcp // {} | to_entries | map({
-      key: .key,
-      value: (
-        if .value.type == "remote" then { type: "http", url: .value.url }
-        elif .value.type == "local" then {
-          type: "stdio",
-          command: .value.command[0],
-          args: .value.command[1:]
-        }
-        else .value
-        end
-      )
-    }) | from_entries) as $claude_mcp |
+    .[1].mcpServers as $source_servers |
     $target |
     .mcpServers = (
       ((.mcpServers // {}) | with_entries(select(.key | startswith("counterpart-") | not))) +
-      $claude_mcp
+      ($source_servers // {})
     )
   ' "$target" "$source" > "$tmp" && mv "$tmp" "$target"
 
