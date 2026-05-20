@@ -53,19 +53,25 @@ lock_prune_stale() {
   local new_lock="$2"
   shift 2
   # Remaining args: provider:target_dir pairs  e.g. "claude:${HOME}/.claude"
-  declare -A provider_map
-  for pair in "$@"; do
-    local prov="${pair%%:*}"
-    local target="${pair#*:}"
-    provider_map["$prov"]="$target"
-  done
+  local pairs=("$@")
 
   local pruned=0
   while IFS= read -r rel_path; do
     local provider="${rel_path%%/*}"
     local sub_path="${rel_path#*/}"
-    local target_base="${provider_map[$provider]:-}"
-    if [[ -z "$target_base" ]]; then continue; fi
+
+    # Find matching target_base by scanning pairs (no associative array needed)
+    local target_base=""
+    for pair in "${pairs[@]}"; do
+      local prov="${pair%%:*}"
+      if [[ "$prov" == "$provider" ]]; then
+        target_base="${pair#*:}"
+        break
+      fi
+    done
+
+    [[ -z "$target_base" ]] && continue
+
     local abs_path="${target_base}/${sub_path}"
     if [[ -f "$abs_path" ]]; then
       rm -f "$abs_path"
