@@ -2,14 +2,14 @@
 # lib/plugins-source.sh — fetch counterpart-plugins@generated branch
 #
 # Clones or updates a local mirror of the generated branch.
-# The mirror lives at ~/.local/share/counterpart-ai-context.
+# The mirror lives at ~/.config/counterpart/cache.
 
 [[ -n "${_CT_PLUGINS_SOURCE_LOADED:-}" ]] && return 0
 _CT_PLUGINS_SOURCE_LOADED=1
 
 PLUGINS_REPO="git@github.com:counterpart-inc/counterpart-plugins.git"
 PLUGINS_BRANCH="generated"
-PLUGINS_CACHE="${HOME}/.local/share/counterpart-ai-context"
+PLUGINS_CACHE="${HOME}/.config/counterpart/cache"
 PLUGINS_LOCK="${HOME}/.config/counterpart/counterpart-ai.lock"
 
 # fetch_plugins_source — clone or pull the generated branch into local cache

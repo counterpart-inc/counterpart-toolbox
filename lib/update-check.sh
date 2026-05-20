@@ -26,7 +26,7 @@ _ct_update_check() {
 
   # Run in background — never block the shell open
   (
-    local cache_dir="${HOME}/.local/share/counterpart-ai-context"
+    local cache_dir="${HOME}/.config/counterpart/cache"
     [[ -d "${cache_dir}/.git" ]] || return 0
 
     git -C "$cache_dir" fetch origin generated --quiet 2>/dev/null || return 0
