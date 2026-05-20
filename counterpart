@@ -200,6 +200,13 @@ run_sync() {
     return 0
   fi
 
+  # Show hash transition
+  local old_agg new_agg
+  old_agg=$(lock_aggregate "$old_lock" 2>/dev/null || echo "none")
+  new_agg=$(lock_aggregate "$new_lock")
+  echo -e "  ${DIM}${old_agg:0:12} → ${new_agg:0:12}${RESET}"
+  echo ""
+
   # Prune stale files before copying new ones
   if [[ -f "$old_lock" ]]; then
     echo "  Pruning stale files..."
