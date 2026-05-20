@@ -80,7 +80,11 @@ lock_prune_stale() {
     fi
   done < <(lock_stale_files "$old_lock" "$new_lock")
 
-  [[ $pruned -gt 0 ]] && echo "  [✓] pruned ${pruned} stale file(s)"
+  if [[ $pruned -gt 0 ]]; then
+    echo "  [✓] pruned ${pruned} stale file(s)"
+  else
+    echo "  nothing to prune"
+  fi
 }
 
 # lock_aggregate <lock_file>

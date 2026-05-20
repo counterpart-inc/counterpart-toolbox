@@ -218,13 +218,13 @@ run_sync() {
       assets+=("$asset")
     done < <(_prefs_get_assets "$provider")
 
-    [[ ${#assets[@]} -eq 0 ]] && continue
+    if [[ ${#assets[@]} -eq 0 ]]; then continue; fi
 
     echo -e "  ${BOLD}$(provider_label "$provider")${RESET}"
 
     local source_dir="${cache_dir}/${provider}"
-    # Pi source is nested
-    [[ "$provider" == "pi" ]] && source_dir="${cache_dir}"
+    # Pi source dir is the cache root (not cache/pi)
+    if [[ "$provider" == "pi" ]]; then source_dir="${cache_dir}"; fi
 
     "sync_provider_${provider}" "$source_dir" "${assets[@]}"
     echo ""
