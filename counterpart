@@ -193,17 +193,17 @@ run_sync() {
     exit 1
   fi
 
-  # Check if already up to date (skip in local mode — always sync)
-  if [[ -z "$local_source" ]] && lock_is_current "$new_lock"; then
+  # Show hash transition — skip if identical
+  local old_agg new_agg
+  old_agg=$(lock_aggregate "$old_lock" 2>/dev/null || echo "")
+  new_agg=$(lock_aggregate "$new_lock")
+
+  if [[ -n "$old_agg" && "$old_agg" == "$new_agg" ]]; then
     echo "  Already up to date."
     echo ""
     return 0
   fi
 
-  # Show hash transition
-  local old_agg new_agg
-  old_agg=$(lock_aggregate "$old_lock" 2>/dev/null || echo "none")
-  new_agg=$(lock_aggregate "$new_lock")
   echo -e "  ${DIM}${old_agg:0:12} → ${new_agg:0:12}${RESET}"
   echo ""
 
