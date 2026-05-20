@@ -137,6 +137,15 @@ run_configure() {
 # ── Sync ────────────────────────────────────────────────────────────────────────
 
 run_sync() {
+  # Parse flags
+  local local_source=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --source) local_source="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
   banner
 
   # First run — configure if no prefs
@@ -150,17 +159,34 @@ run_sync() {
   echo -e "${BOLD}  Syncing AI context...${RESET}"
   echo ""
 
-  # Fetch latest from counterpart-plugins@generated
-  fetch_plugins_source
-  echo ""
+  local cache_dir old_lock new_lock
 
-  local cache_dir
-  cache_dir=$(plugins_source_dir)
-  local old_lock="$PLUGINS_LOCK"
-  local new_lock="${cache_dir}/counterpart-ai.lock"
+  if [[ -n "$local_source" ]]; then
+    # Local mode — skip fetch, use provided directory directly
+    if [[ ! -d "$local_source" ]]; then
+      echo "  [✗] --source directory not found: $local_source" >&2
+      exit 1
+    fi
+    cache_dir="$local_source"
+    echo -e "  ${DIM}[local] using source: ${local_source}${RESET}"
+    echo ""
+  else
+    # Remote mode — fetch counterpart-plugins@generated
+    fetch_plugins_source
+    echo ""
+    cache_dir=$(plugins_source_dir)
+  fi
 
-  # Check if already up to date
-  if lock_is_current "$new_lock"; then
+  old_lock="$PLUGINS_LOCK"
+  new_lock="${cache_dir}/counterpart-ai.lock"
+
+  if [[ ! -f "$new_lock" ]]; then
+    echo "  [✗] counterpart-ai.lock not found in source — is this a valid generated directory?" >&2
+    exit 1
+  fi
+
+  # Check if already up to date (skip in local mode — always sync)
+  if [[ -z "$local_source" ]] && lock_is_current "$new_lock"; then
     echo "  Already up to date."
     echo ""
     return 0
@@ -255,7 +281,7 @@ run_update() {
 
 main() {
   case "${1:-}" in
-    sync)       run_sync ;;
+    sync)       run_sync "${@:2}" ;;
     configure)  run_configure ;;
     status)     run_status ;;
     update)     run_update ;;
@@ -263,10 +289,11 @@ main() {
       banner
       cat <<'USAGE'
   Usage:
-    counterpart sync        Sync AI context to all configured providers
-    counterpart configure   Re-run interactive provider/asset setup
-    counterpart status      Show sync status and configuration
-    counterpart update      Pull latest toolbox + re-sync
+    counterpart sync                        Sync AI context to all configured providers
+    counterpart sync --source <dir>         Sync from a local generated/ directory (dev/test)
+    counterpart configure                   Re-run interactive provider/asset setup
+    counterpart status                      Show sync status and configuration
+    counterpart update                      Pull latest toolbox + re-sync
 
 USAGE
       ;;

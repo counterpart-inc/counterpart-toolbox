@@ -90,7 +90,9 @@ asset_description() {
 
 detect_provider() {
   local provider="$1"
-  local path_var="PROVIDER_PATH_${provider^^}"
+  local upper
+  upper=$(echo "$provider" | tr '[:lower:]' '[:upper:]')
+  local path_var="PROVIDER_PATH_${upper}"
   local path="${!path_var:-}"
   [[ -n "$path" && -d "$path" ]]
 }
