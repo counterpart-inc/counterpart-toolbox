@@ -1,28 +1,35 @@
 #!/usr/bin/env bash
-# lib/sync/opencode.sh — sync provider: OpenCode
-#
-# Installs rules, agents, and skills to OpenCode's config paths.
-# Called by sync_global in lib/sync.sh when "opencode" is in the providers list.
-#
-# Target paths:
-#   Rules   → ~/.config/opencode/AGENTS.md     (managed block)
-#   Agents  → ~/.config/opencode/agents/
-#   Skills  → ~/.config/opencode/skills/
+# lib/sync/opencode.sh — sync assets to OpenCode
 
-# shellcheck source=lib/sync/_common.sh
-source "${TOOLBOX_DIR}/lib/sync/_common.sh"
+sync_provider_opencode() {
+  local source="$1"   # path to generated/opencode/
+  local assets=("${@:2}")
+  local target="${HOME}/.config/opencode"
 
-sync_opencode() {
-  local agents_dir="$1"
-  local personal_dir="${2:-}"
-  local sync_dirs=("$agents_dir")
-  [[ -d "$personal_dir" ]] && sync_dirs+=("$personal_dir")
-  _sync_rules_combined "${HOME}/.config/opencode/AGENTS.md" "${sync_dirs[@]}"
-  _sync_agents "$agents_dir" "${HOME}/.config/opencode/agents" "opencode"
-  _sync_skills "$agents_dir" "${HOME}/.config/opencode/skills"
-  if [[ -d "$personal_dir" ]]; then
-    _sync_agents "$personal_dir" "${HOME}/.config/opencode/agents" "opencode"
-    _sync_skills "$personal_dir" "${HOME}/.config/opencode/skills"
-  fi
-  echo "  [✓] opencode"
+  for asset in "${assets[@]}"; do
+    case "$asset" in
+      skills)
+        mkdir -p "${target}/skills"
+        cp -r "${source}/skills/." "${target}/skills/"
+        echo "  [✓] opencode/skills → ${target}/skills/"
+        ;;
+      agents)
+        mkdir -p "${target}/agents"
+        cp -r "${source}/agents/." "${target}/agents/"
+        echo "  [✓] opencode/agents → ${target}/agents/"
+        ;;
+      commands)
+        mkdir -p "${target}/commands"
+        cp -r "${source}/commands/." "${target}/commands/"
+        echo "  [✓] opencode/commands → ${target}/commands/"
+        ;;
+      mcp)
+        local mcp_source="${source}/opencode.mcp.json"
+        local mcp_target="${HOME}/.config/opencode/opencode.json"
+        if [[ -f "$mcp_source" ]]; then
+          merge_mcp_opencode "$mcp_source" "$mcp_target"
+        fi
+        ;;
+    esac
+  done
 }

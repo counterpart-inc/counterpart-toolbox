@@ -1,0 +1,281 @@
+#!/usr/bin/env bash
+# counterpart — Counterpart AI toolbox
+#
+# Usage:
+#   counterpart sync       Sync AI context to all configured providers
+#   counterpart status     Show sync status
+#   counterpart configure  Re-run the interactive provider/asset setup
+#   counterpart update     Pull latest toolbox + re-sync
+
+set -euo pipefail
+
+# ── Resolve toolbox root ────────────────────────────────────────────────────────
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+export TOOLBOX_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+# ── Load libs ───────────────────────────────────────────────────────────────────
+source "${TOOLBOX_DIR}/lib/providers.sh"
+source "${TOOLBOX_DIR}/lib/section-merger.sh"
+source "${TOOLBOX_DIR}/lib/json-merger.sh"
+source "${TOOLBOX_DIR}/lib/plugins-source.sh"
+source "${TOOLBOX_DIR}/lib/lock.sh"
+source "${TOOLBOX_DIR}/lib/update-check.sh"
+source "${TOOLBOX_DIR}/lib/sync/claude.sh"
+source "${TOOLBOX_DIR}/lib/sync/opencode.sh"
+source "${TOOLBOX_DIR}/lib/sync/pi.sh"
+source "${TOOLBOX_DIR}/lib/sync/cursor.sh"
+
+# ── Constants ───────────────────────────────────────────────────────────────────
+VERSION="$(cat "${TOOLBOX_DIR}/VERSION" 2>/dev/null | tr -d '[:space:]' || echo "?")"
+PREFS_FILE="${HOME}/.config/counterpart/sync.json"
+BOLD="\033[1m"; RESET="\033[0m"; CYAN="\033[36m"; YELLOW="\033[33m"; DIM="\033[2m"; GREEN="\033[32m"
+
+# ── UI helpers ──────────────────────────────────────────────────────────────────
+
+banner() {
+  echo ""
+  echo -e "${BOLD}${CYAN}  counterpart${RESET}  ${YELLOW}v${VERSION}${RESET}"
+  echo ""
+}
+
+_ask_yn() {
+  local prompt="$1" default="${2:-y}"
+  local hint="[Y/n]"; [[ "$default" == "n" ]] && hint="[y/N]"
+  printf "    %s %s " "$prompt" "$hint"
+  local answer; read -r answer </dev/tty
+  answer="${answer:-$default}"
+  [[ "${answer,,}" =~ ^y ]]
+}
+
+# ── Prefs ───────────────────────────────────────────────────────────────────────
+
+_prefs_load() {
+  if [[ ! -f "$PREFS_FILE" ]]; then return 1; fi
+  command -v jq &>/dev/null || return 1
+}
+
+_prefs_get_assets() {
+  local provider="$1"
+  jq -r --arg p "$provider" '.providers[$p][]?' "$PREFS_FILE" 2>/dev/null
+}
+
+_prefs_get_providers() {
+  jq -r '.providers | keys[]' "$PREFS_FILE" 2>/dev/null
+}
+
+# _prefs_write <json_string>
+_prefs_write() {
+  mkdir -p "$(dirname "$PREFS_FILE")"
+  echo "$1" | jq . > "$PREFS_FILE"
+}
+
+# ── Interactive configure ────────────────────────────────────────────────────────
+
+run_configure() {
+  banner
+  echo -e "${BOLD}Configure providers${RESET}"
+  echo ""
+
+  local detected=()
+  while IFS= read -r p; do detected+=("$p"); done < <(detect_providers)
+
+  if [[ ${#detected[@]} -eq 0 ]]; then
+    echo "  No AI providers detected on this machine."
+    echo "  Install Claude Code, OpenCode, Pi, or Cursor and run again."
+    echo ""
+    return 1
+  fi
+
+  echo "  Detected providers:"
+  for p in "${detected[@]}"; do
+    echo -e "    ${GREEN}✓${RESET} $(provider_label "$p")"
+  done
+  echo ""
+
+  # For each detected provider, ask asset toggles
+  local prefs_json='{"providers":{}}'
+
+  for provider in "${detected[@]}"; do
+    echo -e "  ${BOLD}$(provider_label "$provider")${RESET}"
+    echo ""
+
+    local selected_assets=()
+
+    for asset in "${ALL_ASSETS[@]}"; do
+      if provider_supports "$provider" "$asset"; then
+        local desc
+        desc=$(asset_description "$provider" "$asset")
+        echo -e "    ${BOLD}${asset}${RESET}"
+        echo -e "    ${DIM}${desc}${RESET}"
+        if _ask_yn "Include?" "y"; then
+          selected_assets+=("$asset")
+        fi
+      else
+        echo -e "    ${DIM}${asset} — not supported by $(provider_label "$provider")${RESET}"
+      fi
+      echo ""
+    done
+
+    if [[ ${#selected_assets[@]} -gt 0 ]]; then
+      local assets_json
+      assets_json=$(printf '%s\n' "${selected_assets[@]}" | jq -Rsc 'split("\n") | map(select(length>0))')
+      prefs_json=$(echo "$prefs_json" | jq --arg p "$provider" --argjson a "$assets_json" \
+        '.providers[$p] = $a')
+    fi
+  done
+
+  _prefs_write "$prefs_json"
+  echo -e "  ${GREEN}[✓]${RESET} Preferences saved to ${PREFS_FILE}"
+  echo ""
+}
+
+# ── Sync ────────────────────────────────────────────────────────────────────────
+
+run_sync() {
+  banner
+
+  # First run — configure if no prefs
+  if ! _prefs_load; then
+    echo -e "  First time? Let's set up your providers."
+    echo ""
+    run_configure
+    echo ""
+  fi
+
+  echo -e "${BOLD}  Syncing AI context...${RESET}"
+  echo ""
+
+  # Fetch latest from counterpart-plugins@generated
+  fetch_plugins_source
+  echo ""
+
+  local cache_dir
+  cache_dir=$(plugins_source_dir)
+  local old_lock="$PLUGINS_LOCK"
+  local new_lock="${cache_dir}/counterpart-ai.lock"
+
+  # Check if already up to date
+  if lock_is_current "$new_lock"; then
+    echo "  Already up to date."
+    echo ""
+    return 0
+  fi
+
+  # Prune stale files before copying new ones
+  if [[ -f "$old_lock" ]]; then
+    echo "  Pruning stale files..."
+    lock_prune_stale "$old_lock" "$new_lock" \
+      "claude:${HOME}/.claude" \
+      "opencode:${HOME}/.config/opencode" \
+      "pi:${HOME}/.pi/agent" \
+      "cursor:${HOME}/.cursor"
+    echo ""
+  fi
+
+  # Sync each configured provider
+  while IFS= read -r provider; do
+    local assets=()
+    while IFS= read -r asset; do
+      assets+=("$asset")
+    done < <(_prefs_get_assets "$provider")
+
+    [[ ${#assets[@]} -eq 0 ]] && continue
+
+    echo -e "  ${BOLD}$(provider_label "$provider")${RESET}"
+
+    local source_dir="${cache_dir}/${provider}"
+    # Pi source is nested
+    [[ "$provider" == "pi" ]] && source_dir="${cache_dir}"
+
+    "sync_provider_${provider}" "$source_dir" "${assets[@]}"
+    echo ""
+  done < <(_prefs_get_providers)
+
+  # Update local lock
+  lock_update "$new_lock"
+
+  echo -e "${BOLD}  Sync complete.${RESET}"
+  echo ""
+}
+
+# ── Status ───────────────────────────────────────────────────────────────────────
+
+run_status() {
+  banner
+  echo -e "${BOLD}  Status${RESET}"
+  echo ""
+
+  echo "  Version:   v${VERSION}"
+
+  if [[ -f "$PREFS_FILE" ]]; then
+    echo "  Config:    ${PREFS_FILE}"
+    if command -v jq &>/dev/null; then
+      local providers
+      providers=$(jq -r '.providers | keys | join(", ")' "$PREFS_FILE" 2>/dev/null || echo "(none)")
+      echo "  Providers: ${providers}"
+    fi
+  else
+    echo "  Config:    not configured — run: counterpart sync"
+  fi
+
+  if [[ -f "$PLUGINS_LOCK" ]]; then
+    local agg; agg=$(lock_aggregate "$PLUGINS_LOCK")
+    echo "  Lock:      ${agg:0:12}..."
+  else
+    echo "  Lock:      not synced yet"
+  fi
+
+  echo ""
+}
+
+# ── Update ───────────────────────────────────────────────────────────────────────
+
+run_update() {
+  banner
+  echo -e "${BOLD}  Updating counterpart-toolbox...${RESET}"
+  echo ""
+
+  local install_dir="${HOME}/.local/share/counterpart-toolbox"
+  if [[ -d "${install_dir}/.git" ]]; then
+    git -C "$install_dir" pull origin main 2>&1 | sed 's/^/  /'
+    echo ""
+    echo -e "  ${GREEN}[✓]${RESET} Toolbox updated"
+    echo ""
+  fi
+
+  run_sync
+}
+
+# ── Main ────────────────────────────────────────────────────────────────────────
+
+main() {
+  case "${1:-}" in
+    sync)       run_sync ;;
+    configure)  run_configure ;;
+    status)     run_status ;;
+    update)     run_update ;;
+    --help|-h|help|"")
+      banner
+      cat <<'USAGE'
+  Usage:
+    counterpart sync        Sync AI context to all configured providers
+    counterpart configure   Re-run interactive provider/asset setup
+    counterpart status      Show sync status and configuration
+    counterpart update      Pull latest toolbox + re-sync
+
+USAGE
+      ;;
+    *)
+      echo "Unknown command: ${1}" >&2
+      echo "Run 'counterpart --help' for usage." >&2
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
