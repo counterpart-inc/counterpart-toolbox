@@ -47,22 +47,22 @@ _add_to_rc() {
   local rc="$1"
   [[ -f "$rc" ]] || return 0
 
-  if grep -qF "counterpart-toolbox" "$rc" 2>/dev/null; then
+  if grep -qF "# >>> counterpart-toolbox" "$rc" 2>/dev/null; then
     echo -e "  ${YELLOW}[→]${RESET} Already installed in ${rc}"
     return 0
   fi
 
   cat >> "$rc" << 'SHELL_HOOK'
 
-# counterpart-toolbox installer
+# >>> counterpart-toolbox
 export PATH="${HOME}/.local/bin:${PATH}"
-# Check for AI context updates (throttled, runs in background)
 _CT_TOOLBOX="${HOME}/.local/share/counterpart-toolbox"
 if [[ -f "${_CT_TOOLBOX}/lib/update-check.sh" ]]; then
   source "${_CT_TOOLBOX}/lib/update-check.sh"
   _ct_update_check 2>/dev/null || true
 fi
 unset _CT_TOOLBOX
+# <<< counterpart-toolbox
 SHELL_HOOK
 
   echo -e "  ${GREEN}[✓]${RESET} Added hook to ${rc}"

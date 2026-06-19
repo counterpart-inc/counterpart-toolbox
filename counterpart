@@ -292,6 +292,52 @@ run_update() {
   run_sync
 }
 
+run_uninstall() {
+  local yes=0
+  [[ "${1:-}" == "--yes" ]] && yes=1
+
+  banner
+
+  if [[ $yes -eq 0 ]]; then
+    echo -e "  This will remove:"
+    echo -e "    ~/.local/bin/counterpart"
+    echo -e "    ~/.local/share/counterpart-toolbox"
+    echo -e "    ~/.config/counterpart"
+    echo -e "    Shell hook from ~/.zshrc and ~/.bashrc"
+    echo ""
+    if ! _ask_yn "Continue?"; then
+      echo "  Aborted."
+      return 0
+    fi
+    echo ""
+  fi
+
+  rm -f "${HOME}/.local/bin/counterpart"
+  echo -e "  ${GREEN}[✓]${RESET} Removed ~/.local/bin/counterpart"
+
+  rm -rf "${HOME}/.local/share/counterpart-toolbox"
+  echo -e "  ${GREEN}[✓]${RESET} Removed ~/.local/share/counterpart-toolbox"
+
+  rm -rf "${HOME}/.config/counterpart"
+  echo -e "  ${GREEN}[✓]${RESET} Removed ~/.config/counterpart"
+
+  local removed_hook=0
+  for rc in "${HOME}/.zshrc" "${HOME}/.bashrc"; do
+    if grep -qF "# >>> counterpart-toolbox" "$rc" 2>/dev/null; then
+      local tmp; tmp=$(mktemp)
+      awk "/# >>> counterpart-toolbox/{skip=1} /# <<< counterpart-toolbox/{skip=0; next} !skip{print}" "$rc" > "$tmp"
+      mv "$tmp" "$rc"
+      echo -e "  ${GREEN}[✓]${RESET} Removed hook from ${rc}"
+      removed_hook=1
+    fi
+  done
+  [[ $removed_hook -eq 0 ]] && echo -e "  ${DIM}[–]${RESET} No shell hook found"
+
+  echo ""
+  echo -e "  ${BOLD}Done.${RESET} Open a new terminal to complete uninstall."
+  echo ""
+}
+
 # ── Main ────────────────────────────────────────────────────────────────────────
 
 main() {
@@ -300,6 +346,7 @@ main() {
     configure)  run_configure ;;
     status)     run_status ;;
     update)     run_update ;;
+    uninstall)  run_uninstall "${@:2}" ;;
     --help|-h|help|"")
       banner
       cat <<'USAGE'
@@ -309,6 +356,7 @@ main() {
     counterpart configure                   Re-run interactive provider/asset setup
     counterpart status                      Show sync status and configuration
     counterpart update                      Pull latest toolbox + re-sync
+    counterpart uninstall                   Remove counterpart-toolbox from this machine
 
 USAGE
       ;;

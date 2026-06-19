@@ -17,17 +17,9 @@ install:
 	@echo "Done. Reload your shell: source ~/.zshrc"
 	@echo "Then run: counterpart sync"
 
-## Remove hook and symlink
+## Remove symlink, shell hook, config, and cloned repo
 uninstall:
-	rm -f ~/.local/bin/counterpart
-	@bash -c '\
-		RC=~/.zshrc; \
-		if grep -qF "# >>> counterpart-toolbox" "$$RC" 2>/dev/null; then \
-			tmp=$$(mktemp); \
-			awk "/# >>> counterpart-toolbox/{skip=1} /# <<< counterpart-toolbox/{skip=0; next} !skip{print}" "$$RC" > "$$tmp"; \
-			mv "$$tmp" "$$RC"; \
-			echo "Removed hook from $$RC"; \
-		fi'
+	bash counterpart uninstall --yes
 
 ## Run sync against local generated/ (dev shortcut)
 sync:
