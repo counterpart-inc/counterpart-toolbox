@@ -1,2 +1,8 @@
 .DS_Store
 *.log
+
+# local dev artifacts
+.worktrees/
+.opencode/
+.claude/
+.mcp.json
