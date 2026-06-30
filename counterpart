@@ -218,6 +218,9 @@ run_sync() {
     echo ""
   fi
 
+  # Expose new lock path to sync functions (used by copy_lock_assets)
+  COUNTERPART_NEW_LOCK="$new_lock"
+
   # Sync each configured provider
   while IFS= read -r provider; do
     local assets=()

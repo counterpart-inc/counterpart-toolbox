@@ -9,36 +9,32 @@ sync_provider_claude() {
   for asset in "${assets[@]}"; do
     case "$asset" in
       skills)
-        mkdir -p "${target}/skills"
-        cp -r "${source}/skills/." "${target}/skills/"
-        echo "  [✓] claude/skills → ${target}/skills/"
+        local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "claude" "skills" "$source" "$target")
+        echo "  [✓] claude/skills → ${target}/skills/ (${n} files)"
         ;;
       agents)
-        mkdir -p "${target}/agents"
-        cp -r "${source}/agents/." "${target}/agents/"
-        echo "  [✓] claude/agents → ${target}/agents/"
+        local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "claude" "agents" "$source" "$target")
+        echo "  [✓] claude/agents → ${target}/agents/ (${n} files)"
         ;;
       commands)
-        mkdir -p "${target}/commands"
-        cp -r "${source}/commands/." "${target}/commands/"
-        echo "  [✓] claude/commands → ${target}/commands/"
+        local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "claude" "commands" "$source" "$target")
+        echo "  [✓] claude/commands → ${target}/commands/ (${n} files)"
         ;;
       output-styles)
-        mkdir -p "${target}/output-styles"
-        cp -r "${source}/output-styles/." "${target}/output-styles/"
-        echo "  [✓] claude/output-styles → ${target}/output-styles/"
+        local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "claude" "output-styles" "$source" "$target")
+        echo "  [✓] claude/output-styles → ${target}/output-styles/ (${n} files)"
         ;;
       hooks)
         local hooks_source="${source}/hooks/hooks.json"
-        local hooks_target="${PWD}/.claude/settings.json"
+        local hooks_target="${HOME}/.claude/settings.json"
         if [[ -f "$hooks_source" ]]; then
-          mkdir -p "${PWD}/.claude"
+          mkdir -p "${HOME}/.claude"
           merge_hooks_claude "$hooks_source" "$hooks_target"
         fi
         ;;
       mcp)
         local mcp_source="${source}/mcp.json"
-        local mcp_target="${PWD}/.mcp.json"
+        local mcp_target="${HOME}/.claude.json"
         if [[ -f "$mcp_source" ]]; then
           _merge_mcp_claude "$mcp_source" "$mcp_target"
         fi
@@ -47,8 +43,9 @@ sync_provider_claude() {
   done
 }
 
-# _merge_mcp_claude <source_mcp_json> <target_mcp_json>
-#   Merges counterpart-* keys from source (Claude format) into target .mcp.json.
+# _merge_mcp_claude <source_mcp_json> <target_claude_json>
+#   Merges counterpart-* keys from source into ~/.claude.json under .mcpServers
+#   (user scope — available across all projects).
 #   Never touches non-counterpart-* keys in target.
 _merge_mcp_claude() {
   local source="$1"

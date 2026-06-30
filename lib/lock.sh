@@ -102,3 +102,32 @@ lock_is_current() {
   local_agg=$(lock_aggregate "$LOCAL_LOCK")
   [[ -n "$remote_agg" && "$remote_agg" == "$local_agg" ]]
 }
+
+# copy_lock_assets <lock> <provider> <asset> <source_dir> <target_dir>
+#   Copies only the files tracked in the lock for <provider>/<asset> from
+#   source_dir to target_dir. Never touches files not in the lock manifest —
+#   user files with unique names are left untouched regardless of location.
+#
+#   Lock paths look like: claude/skills/foo/SKILL.md
+#   provider prefix is stripped to get the relative path: skills/foo/SKILL.md
+#   Source file: <source_dir>/skills/foo/SKILL.md
+#   Target file: <target_dir>/skills/foo/SKILL.md
+#
+#   Prints the number of files copied (for use in caller echo messages).
+copy_lock_assets() {
+  local lock="$1" provider="$2" asset="$3" source_dir="$4" target_dir="$5"
+  local count=0
+
+  while IFS= read -r rel_path; do
+    local sub_path="${rel_path#${provider}/}"
+    local src="${source_dir}/${sub_path}"
+    local dst="${target_dir}/${sub_path}"
+
+    [[ -f "$src" ]] || continue
+    mkdir -p "$(dirname "$dst")"
+    cp "$src" "$dst"
+    count=$((count + 1))
+  done < <(lock_list_paths "$lock" | grep "^${provider}/${asset}/")
+
+  echo "$count"
+}

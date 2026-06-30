@@ -9,19 +9,16 @@ sync_provider_opencode() {
   for asset in "${assets[@]}"; do
     case "$asset" in
       skills)
-        mkdir -p "${target}/skills"
-        cp -r "${source}/skills/." "${target}/skills/"
-        echo "  [✓] opencode/skills → ${target}/skills/"
+        local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "opencode" "skills" "$source" "$target")
+        echo "  [✓] opencode/skills → ${target}/skills/ (${n} files)"
         ;;
       agents)
-        mkdir -p "${target}/agents"
-        cp -r "${source}/agents/." "${target}/agents/"
-        echo "  [✓] opencode/agents → ${target}/agents/"
+        local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "opencode" "agents" "$source" "$target")
+        echo "  [✓] opencode/agents → ${target}/agents/ (${n} files)"
         ;;
       commands)
-        mkdir -p "${target}/commands"
-        cp -r "${source}/commands/." "${target}/commands/"
-        echo "  [✓] opencode/commands → ${target}/commands/"
+        local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "opencode" "commands" "$source" "$target")
+        echo "  [✓] opencode/commands → ${target}/commands/ (${n} files)"
         ;;
       mcp)
         local mcp_source="${source}/opencode.mcp.json"

@@ -11,9 +11,9 @@ sync_provider_cursor() {
   for asset in "${assets[@]}"; do
     case "$asset" in
       skills)
-        mkdir -p "${target}/rules"
-        cp -r "${source}/rules/." "${target}/rules/"
-        echo "  [✓] cursor/rules → ${target}/rules/"
+        # Note: asset is "skills" in prefs but "rules" in the lock/generated dir
+        local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "cursor" "rules" "$source" "$target")
+        echo "  [✓] cursor/rules → ${target}/rules/ (${n} files)"
         ;;
     esac
   done
