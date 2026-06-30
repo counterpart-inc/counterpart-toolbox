@@ -19,7 +19,7 @@ ALL_PROVIDERS=(claude opencode pi cursor)
 
 # ── All known assets (display order) ───────────────────────────────────────────
 
-ALL_ASSETS=(skills agents commands hooks output-styles mcp)
+ALL_ASSETS=(skills agents commands hooks output-styles mcp global-rules)
 
 # ── Asset support matrix ────────────────────────────────────────────────────────
 # provider_supports <provider> <asset>  → returns 0 (yes) or 1 (no)
@@ -33,13 +33,15 @@ provider_supports() {
     claude:hooks)         return 0 ;;
     claude:output-styles) return 0 ;;
     claude:mcp)           return 0 ;;
-    opencode:skills)      return 0 ;;
-    opencode:agents)      return 0 ;;
-    opencode:commands)    return 0 ;;
-    opencode:mcp)         return 0 ;;
-    pi:skills)            return 0 ;;
-    cursor:skills)        return 0 ;;
-    *)                    return 1 ;;
+    opencode:skills)        return 0 ;;
+    opencode:agents)        return 0 ;;
+    opencode:commands)      return 0 ;;
+    opencode:mcp)           return 0 ;;
+    opencode:global-rules)  return 0 ;;
+    pi:skills)              return 0 ;;
+    cursor:skills)          return 0 ;;
+    claude:global-rules)    return 0 ;;
+    *)                      return 1 ;;
   esac
 }
 
@@ -79,8 +81,14 @@ asset_description() {
       esac ;;
     mcp)
       case "$provider" in
-        claude)   echo "Sentry, Linear, Context7, Chrome DevTools → .mcp.json (project-level)" ;;
+        claude)   echo "Sentry, Linear, Context7, Chrome DevTools → ~/.claude.json (user scope, counterpart-* keys)" ;;
         opencode) echo "Sentry, Linear, Context7, Chrome DevTools → ~/.config/opencode/opencode.json (merged, counterpart-* keys)" ;;
+        *)        echo "Not supported by ${provider}" ;;
+      esac ;;
+    global-rules)
+      case "$provider" in
+        claude)   echo "Company-wide AI rules → injected into ~/.claude/CLAUDE.md (managed block)" ;;
+        opencode) echo "Company-wide AI rules → injected into ~/.config/opencode/AGENTS.md (managed block)" ;;
         *)        echo "Not supported by ${provider}" ;;
       esac ;;
   esac

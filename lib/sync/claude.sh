@@ -24,6 +24,15 @@ sync_provider_claude() {
         local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "claude" "output-styles" "$source" "$target")
         echo "  [✓] claude/output-styles → ${target}/output-styles/ (${n} files)"
         ;;
+      global-rules)
+        local rules_source="${source}/AGENTS.md"
+        local rules_target="${HOME}/.claude/CLAUDE.md"
+        if [[ -f "$rules_source" ]]; then
+          local content; content=$(cat "$rules_source")
+          upsert_managed_section "$rules_target" "$content"
+          echo "  [✓] claude global-rules → ${rules_target}"
+        fi
+        ;;
       hooks)
         local hooks_source="${source}/hooks/hooks.json"
         local hooks_target="${HOME}/.claude/settings.json"

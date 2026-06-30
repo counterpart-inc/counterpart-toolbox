@@ -20,6 +20,15 @@ sync_provider_opencode() {
         local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "opencode" "commands" "$source" "$target")
         echo "  [✓] opencode/commands → ${target}/commands/ (${n} files)"
         ;;
+      global-rules)
+        local rules_source="${source}/AGENTS.md"
+        local rules_target="${HOME}/.config/opencode/AGENTS.md"
+        if [[ -f "$rules_source" ]]; then
+          local content; content=$(cat "$rules_source")
+          upsert_managed_section "$rules_target" "$content"
+          echo "  [✓] opencode global-rules → ${rules_target}"
+        fi
+        ;;
       mcp)
         local mcp_source="${source}/opencode.mcp.json"
         local mcp_target="${HOME}/.config/opencode/opencode.json"
