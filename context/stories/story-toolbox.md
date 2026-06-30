@@ -142,6 +142,10 @@ Once the source is ready and locks differ, the toolbox iterates over the enginee
   available across all projects); `merge_mcp_opencode()` in [`lib/json-merger.sh`](../../lib/json-merger.sh) handles
   `~/.config/opencode/opencode.json` (merged under `.mcp`).
 
+- **Global rules** (Claude + OpenCode): Content from `generated/<provider>/AGENTS.md` is injected into
+  `~/.claude/CLAUDE.md` or `~/.config/opencode/AGENTS.md` via `upsert_managed_section()`. See the Managed Section
+  Merging section above for the full picture.
+
 - **Hooks** (Claude only): Merged into `~/.claude/settings.json` (user-level, global). The toolbox tracks which hooks it
   owns in `~/.config/counterpart/last-claude-hooks.json`. On each sync, previously-synced counterpart hooks are removed
   and the current set is added — so removed hooks are cleaned up automatically. User's own hooks are never in the
@@ -152,19 +156,24 @@ Once the source is ready and locks differ, the toolbox iterates over the enginee
   as `${source}/agent/skills/`. Skills land at `~/.pi/agent/skills/`. Pi can also read skills from `~/.agents/skills/`,
   but the toolbox only syncs to the former — one location is sufficient.
 
-### Managed Section Merging
+### Managed Section Merging (Global Rules)
 
 [`lib/section-merger.sh`](../../lib/section-merger.sh) provides `upsert_managed_section()` — a function that injects
-content into a `<!-- counterpart:managed:start --> ... <!-- counterpart:managed:end -->` block in a file (typically
-`AGENTS.md` or `CLAUDE.md`). On first run it prepends the managed block; on subsequent runs it replaces only the content
-inside the markers. User content outside the markers is never touched.
+content into a `<!-- counterpart:managed:start --> ... <!-- counterpart:managed:end -->` block in a file. On first run
+it prepends the managed block; on subsequent runs it replaces only the content inside the markers. User content outside
+the markers is never touched.
 
-This function is **not currently wired into the sync flow**. The original intent was to distribute a set of global
-company-wide AI rules by syncing a managed block into each engineer's global `AGENTS.md` or `CLAUDE.md`. The blocker is
-on the source side: `counterpart-plugins` does have an `AGENTS.md`, but it contains repo-scoped instructions for working
-in that repo — not global rules intended for engineers. The generation pipeline in `counterpart-plugins` intentionally
-skips `AGENTS.md` so it never lands in the `generated` branch. Until a separate source of global rules exists in the
-plugins repo and the generator is updated to emit it, `section-merger.sh` remains unused infrastructure.
+This is how **global rules** are distributed. The `counterpart-plugins` repo has a `rules/` directory; its CI pipeline
+concatenates all `.md` files in it and emits the result to `generated/claude/AGENTS.md` and
+`generated/opencode/AGENTS.md`. The toolbox picks these up via the `global-rules` asset type:
+
+- **Claude**: content is injected into `~/.claude/CLAUDE.md` via `upsert_managed_section`
+- **OpenCode**: content is injected into `~/.config/opencode/AGENTS.md` via `upsert_managed_section`
+- **Cursor**: the generator emits `generated/cursor/rules/counterpart.mdc` (with `alwaysApply: true` frontmatter); this
+  file is synced normally by the existing cursor rules copy — no managed block needed
+
+The managed block approach means engineers can add their own content to `CLAUDE.md` or `AGENTS.md` freely — the sync
+only ever updates the block between the markers and leaves everything else alone.
 
 ### Background Update Check
 
@@ -296,10 +305,10 @@ skill authoring, the CI pipeline that runs the generator, and the source-of-trut
 Understanding the generator's output format (directory structure, lock format) is necessary to extend the toolbox with
 new asset types.
 
-**Global AI rules via section-merger** — The plumbing for distributing company-wide rules into engineers' `AGENTS.md` /
-`CLAUDE.md` exists in `lib/section-merger.sh` but isn't wired up yet. The gap is on the source side: a dedicated global
-rules file needs to be created in `counterpart-plugins` and emitted by the generator before the sync can distribute it.
-See the "Managed Section Merging" section of The Story for the full picture.
+**Global rules source in counterpart-plugins** — The `rules/` directory in `counterpart-plugins` is the source of truth
+for global AI rules. Adding a new `.md` file there triggers CI, which concatenates all rules and emits the output to the
+`generated` branch. The toolbox picks it up on the next `counterpart sync`. See the "Managed Section Merging" section of
+The Story for the full distribution picture.
 
 **Pi support** — Pi currently only receives skills. Pi as a platform is more "do it yourself" and natively supports
 fewer features than Claude or OpenCode, so asset expansion is gated by what Pi itself supports. The toolbox is written

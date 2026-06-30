@@ -35,8 +35,8 @@ The toolbox has two orthogonal dimensions of configuration:
 
 - **Providers** — the AI tools engineers run (Claude Code, OpenCode, Pi, Cursor). Each provider has a sync function and
   a directory where its assets land.
-- **Assets** — the types of content distributed (skills, agents, commands, hooks, MCP servers, output-styles). Each
-  asset type may or may not be supported by each provider.
+- **Assets** — the types of content distributed (skills, agents, commands, hooks, MCP servers, output-styles,
+  global-rules). Each asset type may or may not be supported by each provider.
 
 The support matrix lives in one place: `lib/providers.sh`. Everything else — detection, UI labels, descriptions — hangs
 off of it. Adding a new provider or asset type means extending this matrix and then wiring up the sync logic.
@@ -155,23 +155,42 @@ newasset)
 
 **Step 2 — Add a `case` branch in each supporting `sync_provider_*` function**
 
-In `lib/sync/claude.sh`:
+There are two patterns depending on whether the asset writes new files or injects into an existing file.
+
+**Pattern A — file copy** (skills, agents, commands, output-styles): use `copy_lock_assets` so only lock-tracked files
+are written and user files are preserved:
 
 ```bash
 newasset)
-  mkdir -p "${target}/newasset"
-  cp -r "${source}/newasset/." "${target}/newasset/"
-  echo "  [✓] claude/newasset → ${target}/newasset/"
+  local n; n=$(copy_lock_assets "$COUNTERPART_NEW_LOCK" "claude" "newasset" "$source" "$target")
+  echo "  [✓] claude/newasset → ${target}/newasset/ (${n} files)"
   ;;
 ```
+
+**Pattern B — managed block injection** (global-rules): use `upsert_managed_section` to inject content into an existing
+file without touching anything outside the markers:
+
+```bash
+newasset)
+  local content_source="${source}/newasset.md"
+  if [[ -f "$content_source" ]]; then
+    local content; content=$(cat "$content_source")
+    upsert_managed_section "${HOME}/.claude/TARGETFILE.md" "$content"
+    echo "  [✓] claude/newasset → ~/.claude/TARGETFILE.md"
+  fi
+  ;;
+```
+
+`upsert_managed_section` is available in all sync functions because `lib/section-merger.sh` is sourced by the main
+`counterpart` script before the sync loop.
 
 Repeat for each provider that supports the new asset type.
 
 **Step 3 — Verify**
 
 `counterpart configure` should now offer the new asset toggle for supported providers.
-`counterpart sync --source <local-generated-dir>` will exercise it if the generated directory contains the expected
-subdirectory.
+`counterpart sync --source <local-generated-dir>` will exercise it if the generated directory contains the expected file
+or subdirectory.
 
 ---
 
