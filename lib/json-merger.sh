@@ -46,13 +46,17 @@ merge_mcp_opencode() {
 }
 
 # merge_hooks_claude <source_hooks_json> <target_settings_json>
-#   Merges hooks from source into target .claude/settings.json.
+#   Merges hooks from source into target ~/.claude/settings.json (user-level).
 #   Source format: { "hooks": { "PreToolUse": [...], ... } }
 #   Creates target if it doesn't exist.
-#   Deduplicates hook entries by JSON identity.
+#
+#   Counterpart-owned hooks are tracked in ~/.config/counterpart/last-claude-hooks.json.
+#   On each sync, old counterpart hooks are removed and new ones are added.
+#   User's own hooks are never touched — they are never in the tracked set.
 merge_hooks_claude() {
   local source="$1"
   local target="$2"
+  local state_file="${HOME}/.config/counterpart/last-claude-hooks.json"
 
   if ! command -v jq &>/dev/null; then
     echo "  [!] jq required for hooks merge" >&2; return 1
@@ -64,26 +68,46 @@ merge_hooks_claude() {
   mkdir -p "$(dirname "$target")"
   [[ -f "$target" ]] || echo '{}' > "$target"
 
+  # Load last-synced counterpart hooks (empty object on first run)
+  local old_hooks="{}"
+  [[ -f "$state_file" ]] && old_hooks=$(cat "$state_file")
+
+  # Extract new hooks from source
+  local new_hooks
+  new_hooks=$(jq '.hooks // {}' "$source")
+
   local tmp
   tmp=$(mktemp)
 
-  # For each event type, merge arrays and deduplicate by JSON identity
-  jq -s '
+  # For each event type managed by counterpart (union of old and new):
+  #   - Remove entries that match the old counterpart set (cleaning up removed hooks)
+  #   - Add entries from the new counterpart set
+  #   - Leave user hooks (not in old counterpart set) untouched
+  jq -s --argjson old "$old_hooks" --argjson new "$new_hooks" '
     .[0] as $target |
-    .[1].hooks as $source_hooks |
+    ([$old, $new] | map(keys) | add | unique) as $managed_events |
     $target |
     .hooks = (
-      (($target.hooks // {}) + ($source_hooks // {})) |
-      to_entries |
-      map({
-        key: .key,
-        value: (
-          (.value | unique_by(tojson))
-        )
-      }) |
-      from_entries
+      reduce $managed_events[] as $event (
+        ($target.hooks // {});
+        . + {
+          ($event): (
+            [
+              (.[$event] // [])[] |
+              . as $item |
+              select(($old[$event] // []) | map(. == $item) | any | not)
+            ] +
+            ($new[$event] // []) |
+            unique_by(tojson)
+          )
+        }
+      )
     )
-  ' "$target" "$source" > "$tmp" && mv "$tmp" "$target"
+  ' "$target" > "$tmp" && mv "$tmp" "$target"
+
+  # Persist the new counterpart hooks as the reference for the next sync
+  mkdir -p "$(dirname "$state_file")"
+  echo "$new_hooks" > "$state_file"
 
   local count
   count=$(jq '[.hooks // {} | to_entries[] | .value | length] | add // 0' "$target")
